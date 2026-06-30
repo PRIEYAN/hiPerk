@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useApp, type ApprovalMode } from "@/lib/store";
 
@@ -9,7 +9,10 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const { role, wallet } = useApp();
+  const { role, wallet, loadFromBackend } = useApp();
+  useEffect(() => {
+    loadFromBackend();
+  }, [loadFromBackend]);
   if (!wallet || !role) return <Navigate to="/onboarding" />;
   return <PageShell>{role === "moderator" ? <ModeratorView /> : <DeveloperView />}</PageShell>;
 }
@@ -94,7 +97,7 @@ function DeveloperView() {
 }
 
 function ModeratorView() {
-  const { modules, wallet, addModule } = useApp();
+  const { modules, wallet, createModuleApi } = useApp();
   const [creating, setCreating] = useState(false);
   const mine = modules.filter((m) => m.createdBy === wallet || m.createdBy.startsWith("GSEED"));
   return (
@@ -127,7 +130,7 @@ function ModeratorView() {
           />
         ))}
       </div>
-      {creating && <CreateModuleModal onClose={() => setCreating(false)} onCreate={(d) => { addModule({ ...d, createdBy: wallet! }); setCreating(false); }} />}
+      {creating && <CreateModuleModal onClose={() => setCreating(false)} onCreate={async (d) => { await createModuleApi({ ...d, createdBy: wallet! }); setCreating(false); }} />}
     </>
   );
 }

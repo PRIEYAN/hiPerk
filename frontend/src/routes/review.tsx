@@ -8,7 +8,7 @@ export const Route = createFileRoute("/review")({
 });
 
 function Review() {
-  const { wallet, role, claims, modules, approveClaim, rejectClaim } = useApp();
+  const { wallet, role, claims, modules, approveClaimApi, rejectClaimApi } = useApp();
   const navigate = useNavigate();
   if (!wallet || !role) return <Navigate to="/onboarding" />;
 
@@ -16,8 +16,8 @@ function Review() {
   const myModuleIds = new Set(modules.filter((m) => m.createdBy === wallet || m.createdBy.startsWith("GSEED")).map((m) => m.id));
   const visible = claims.filter((c) => myModuleIds.has(c.moduleId));
 
-  const handleApprove = (id: string) => {
-    approveClaim(id);
+  const handleApprove = async (id: string) => {
+    await approveClaimApi(id, wallet ?? undefined);
     navigate({ to: "/claim/$id", params: { id } });
   };
 
@@ -63,7 +63,7 @@ function Review() {
               {c.status === "Pending review" && (
                 <div className="mt-5 flex gap-2">
                   <button
-                    onClick={() => rejectClaim(c.id)}
+                    onClick={() => rejectClaimApi(c.id)}
                     className="flex-1 rounded-full bg-white/60 border border-black/10 px-4 py-3 text-sm hover:bg-white/80"
                   >
                     Reject

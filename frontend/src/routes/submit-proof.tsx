@@ -14,7 +14,7 @@ export const Route = createFileRoute("/submit-proof")({
 
 function SubmitProof() {
   const { moduleId } = Route.useSearch();
-  const { modules, wallet, role, addClaim } = useApp();
+  const { modules, wallet, role, submitClaimApi } = useApp();
   const navigate = useNavigate();
   const [selected, setSelected] = useState(moduleId ?? modules[0]?.id ?? "");
   const [evidence, setEvidence] = useState("");
@@ -28,12 +28,15 @@ function SubmitProof() {
   const onGenerate = async () => {
     if (!mod) return;
     setGenerating(true);
-    await new Promise((r) => setTimeout(r, 2600));
-    const claim = addClaim({
+    // Backend runs the (mock) RISC Zero proof + x402 payment + on-chain
+    // register_member; falls back to local state if the backend is down.
+    const claim = await submitClaimApi({
       moduleId: mod.id,
       moduleName: mod.repo,
+      evidenceText: evidence,
       amount,
       ownerWallet: wallet,
+      payoutAddress: wallet,
     });
     setGenerating(false);
     navigate({ to: "/claim/$id", params: { id: claim.id } });
