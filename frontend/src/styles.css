@@ -1,0 +1,128 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 1rem;
+  /* Cream / paper background like reference */
+  --background: oklch(0.965 0.012 95);
+  --foreground: oklch(0.13 0 0);
+  --card: oklch(0.98 0.008 95);
+  --card-foreground: oklch(0.13 0 0);
+  --popover: oklch(0.98 0.008 95);
+  --popover-foreground: oklch(0.13 0 0);
+  --primary: oklch(0.13 0 0);
+  --primary-foreground: oklch(0.98 0.005 95);
+  --secondary: oklch(0.93 0.014 95);
+  --secondary-foreground: oklch(0.13 0 0);
+  --muted: oklch(0.93 0.014 95);
+  --muted-foreground: oklch(0.45 0.01 95);
+  --accent: oklch(0.65 0.22 295);
+  --accent-foreground: oklch(0.98 0.005 95);
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.98 0.005 95);
+  --border: oklch(0.86 0.012 95);
+  --input: oklch(0.86 0.012 95);
+  --ring: oklch(0.65 0.22 295);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Glass pill (iOS 17 / liquid glass feel) */
+@utility glass-pill {
+  background: color-mix(in oklab, black 88%, transparent);
+  color: oklch(0.98 0 0);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.12),
+    inset 0 -1px 0 oklch(0 0 0 / 0.4),
+    0 10px 30px -10px oklch(0 0 0 / 0.35);
+}
+
+@utility glass-card {
+  background: color-mix(in oklab, white 55%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid oklch(1 0 0 / 0.6);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    0 1px 0 oklch(0 0 0 / 0.04),
+    0 20px 60px -25px oklch(0 0 0 / 0.25);
+}
+
+@utility glass-dark {
+  background: color-mix(in oklab, black 78%, transparent);
+  color: oklch(0.98 0 0);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid oklch(1 0 0 / 0.1);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.12),
+    0 20px 60px -20px oklch(0 0 0 / 0.5);
+}
+
+@utility text-display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  line-height: 0.88;
+  text-transform: uppercase;
+}
+
+@utility chromatic-shape {
+  filter:
+    drop-shadow(1px 0 0 oklch(0.62 0.24 295))
+    drop-shadow(-1px 0 0 oklch(0.7 0.2 200));
+}
+
+/* subtle paper grain */
+.bg-paper {
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(1200px 600px at 50% 30%, oklch(1 0 0 / 0.6), transparent 60%),
+    radial-gradient(800px 400px at 80% 80%, oklch(0.9 0.04 280 / 0.25), transparent 60%);
+}
