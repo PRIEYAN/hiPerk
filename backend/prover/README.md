@@ -1,37 +1,34 @@
 # hiPerk prover service
 
-A Rust workspace that runs the `prove-merge` RISC Zero zkVM guest program and
-outsources actual proof generation to the [Boundless](https://boundless.xyz)
-decentralized proving market, exposing a small HTTP API the Node.js backend
-calls (`backend/src/services/riscZeroProver.ts`, `PROVER_MODE=boundless`).
+A Rust workspace that runs the `prove-merge` RISC Zero zkVM guest program with
+a **local** prover — no external marketplace, no separate wallet, no
+third-party dependency beyond the RISC Zero toolchain itself. This matches
+the fact that the rest of hiPerk (contracts, payouts, x402) is Stellar-only;
+proving doesn't need to pull in an unrelated chain or marketplace to work.
+
+It exposes a small HTTP API the Node.js backend calls
+(`backend/src/services/riscZeroProver.ts`, `PROVER_MODE=risc0`).
 
 ```
 prover/
 ├── methods/
 │   ├── guest/src/main.rs   # the zkVM guest program (prove-merge)
 │   └── src/lib.rs          # includes the build-generated ELF/ID constants
-└── host/src/main.rs        # HTTP server: submits proofs to Boundless, decodes results
+└── host/src/main.rs        # HTTP server: runs default_prover() locally, decodes results
 ```
 
 ## Status — read before relying on this
 
 This was written without a working Rust toolchain in the authoring
-environment, so **none of it has been compiled**. It's built carefully against
-real, verified crate APIs (`risc0-zkvm` 3.x, `boundless-market` 2.0.1), but
-treat it as a first pass to compile and fix up, not a finished artifact:
+environment, so **none of it has been compiled**. The `risc0-zkvm` local
+proving API (`default_prover()`, `ExecutorEnv::builder()`, `Receipt::journal`,
+`Journal::decode()`) is stable and was cross-checked against current docs.rs
+pages and RISC Zero's own Hello World tutorial (the guest program's plain
+`use risc0_zkvm::guest::env;` + `entry!(main)` — no `#![no_std]`/manual
+`alloc` plumbing — matches their current example exactly). Confidence here is
+meaningfully higher than a marketplace integration would be, but treat this
+as a first pass to compile and fix up:
 
-- **Bonsai is deprecated.** RISC Zero's docs now point to Boundless, a
-  decentralized on-chain proving marketplace, as the replacement. That's what
-  this service targets — but it means proving now requires an
-  Ethereum-compatible wallet + RPC (for the Boundless market), not just an API
-  key like Bonsai used.
-- **Boundless's own docs site (`docs.beboundless.xyz`) had an expired TLS
-  certificate** at the time this was written, so the exact request/offer
-  pricing API (`OfferParams`, min/max price, timeout) could not be confirmed
-  against canonical examples. `host/src/main.rs` uses `client.submit(request)`
-  with default pricing — if requests aren't picked up by provers, you'll need
-  to set explicit offer params; check current Boundless docs for the
-  `request_builder` API once the site is reachable.
 - **DKIM verification is stubbed, not implemented.** The guest program
   (`methods/guest/src/main.rs`) only checks that the email looks structurally
   like a GitHub merge notification (sender, "merged" keyword, repo mention) —
@@ -40,11 +37,15 @@ treat it as a first pass to compile and fix up, not a finished artifact:
   (parse the `DKIM-Signature` header, verify against GitHub's published
   `github.com._domainkey` public key with the `rsa`/`pkcs1` crates) needs to
   be implemented before this proof is trustworthy for anything beyond a demo.
-- **`FulfillmentDataImageIdAndJournal` field access** (`data.imageId`,
-  `data.journal`) and the `risc0_zkvm::serde` (postcard) encoding used for the
-  guest journal/input were both cross-checked against docs.rs, but not
-  against a compiler. Small type mismatches (e.g. `Bytes` vs `Vec<u8>`) are
-  the most likely first build errors.
+- **Proving is CPU-bound and can be slow** — local STARK proving for a guest
+  program with real crypto (once DKIM verification is added) can take
+  seconds to tens of seconds depending on hardware. There's no GPU
+  acceleration wired in here; see `risc0-zkvm`'s `cuda`/`metal` features if
+  you need it.
+- **`bincode::serialize(&receipt)`** for the `receipt_hex` response field
+  was confirmed against docs.rs (`Receipt` implements `serde`), but the exact
+  wire format wasn't compiled/tested — if you need a specific format for
+  downstream storage, verify this on first build.
 
 ## Setup
 
@@ -53,17 +54,16 @@ treat it as a first pass to compile and fix up, not a finished artifact:
 curl -L https://risczero.com/install | bash
 rzup install
 
-# 2. Fund an Ethereum-compatible wallet for the Boundless market and set:
-export BOUNDLESS_RPC_URL=<an EVM RPC endpoint on Boundless's supported chain>
-export BOUNDLESS_PRIVATE_KEY=<funded wallet private key>
-
-# 3. Build and run the host service:
+# 2. Build and run the host service:
 cd prover
 cargo run --release --bin host
 # Listens on :8080 (override with PROVER_LISTEN_ADDR)
+
+# While iterating, skip real proving for fast unproven receipts:
+RISC0_DEV_MODE=1 cargo run --release --bin host
 ```
 
-Then set `PROVER_MODE=boundless` and `PROVER_SERVICE_URL=http://localhost:8080`
+Then set `PROVER_MODE=risc0` and `PROVER_SERVICE_URL=http://localhost:8080`
 in `backend/.env`.
 
 ## HTTP interface
@@ -79,7 +79,8 @@ POST /prove
 200 OK
 {
   "journal_hex": "...",
-  "seal_hex": "...",
+  "receipt_hex": "...",  // full bincode-serialized Receipt, re-verifiable
+                          // via receipt.verify(PROVE_MERGE_ID)
   "commitment": "...",   // hex, 32 bytes — anonymous membership commitment
   "nullifier": "...",    // hex, 32 bytes — unique per claim
   "repo_id": "..."

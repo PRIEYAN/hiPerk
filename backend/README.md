@@ -53,9 +53,9 @@ No route, log, or record stores a GitHub identity/email next to a
 ## Services
 
 - `riscZeroProver.ts` — **mock** proof generation by default (deterministic
-  commitment + nullifier from evidence). With `PROVER_MODE=boundless`, calls
-  the real RISC Zero prover service in `prover/` instead — see
-  `prover/README.md`.
+  commitment + nullifier from evidence). With `PROVER_MODE=risc0`, calls the
+  real, locally-run RISC Zero prover service in `prover/` instead (no
+  external marketplace/wallet) — see `prover/README.md`.
 - `x402Payment.ts` — **real** x402 payment gate on `POST /claims` when
   `X402_MODE=live` and a facilitator URL + `payTo` address are configured;
   otherwise passes requests through untouched (mock/offline demo mode).

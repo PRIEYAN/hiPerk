@@ -14,9 +14,10 @@ export interface ProofResult {
 /**
  * RISC Zero prover.
  *
- * `PROVER_MODE=boundless`: calls the Rust prover service in `prover/`, which
- * runs the real `prove-merge` zkVM guest program via the Boundless proving
- * market and returns a verified journal (repo_id/commitment/nullifier).
+ * `PROVER_MODE=risc0`: calls the Rust prover service in `prover/`, which runs
+ * the real `prove-merge` zkVM guest program with a local RISC Zero prover
+ * (no external marketplace/wallet — everything runs on your own machine) and
+ * returns a verified journal (repo_id/commitment/nullifier).
  *
  * `PROVER_MODE=mock` (default): derives a deterministic commitment/nullifier
  * from the evidence + repo (so resubmitting the same evidence yields the same
@@ -30,7 +31,7 @@ export async function generateProof(input: {
   repoUrl?: string;
   contributorSecret?: string;
 }): Promise<ProofResult> {
-  if (config.proverMode === "boundless") {
+  if (config.proverMode === "risc0") {
     return generateProofViaProverService({
       rawEmail: input.rawEmail ?? input.evidenceText,
       repoUrl: input.repoUrl ?? input.repoId,
