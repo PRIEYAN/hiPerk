@@ -9,7 +9,7 @@ use soroban_sdk::{
 
 // Pull in the real Gatekeeper contract for cross-contract tests instead of the
 // WASM import (which only resolves at build time).
-use gatekeeper::{GatekeeperContract, GatekeeperContractClient};
+use ::gatekeeper::{GatekeeperContract, GatekeeperContractClient};
 
 struct Setup<'a> {
     env: Env,
