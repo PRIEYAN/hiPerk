@@ -20,7 +20,14 @@ export const config = {
   payoutTokenId: process.env.PAYOUT_TOKEN_ID ?? "",
 
   proverMode: (process.env.PROVER_MODE ?? "mock") as "mock" | "boundless",
+  proverServiceUrl: process.env.PROVER_SERVICE_URL ?? "http://localhost:8080",
   x402Mode: (process.env.X402_MODE ?? "mock") as "mock" | "live",
+
+  x402FacilitatorUrl: process.env.X402_FACILITATOR_URL ?? "",
+  x402Network: process.env.X402_NETWORK ?? "stellar:testnet",
+  x402PayTo: process.env.X402_PAY_TO ?? "",
+  x402UsdcContractId: process.env.X402_USDC_CONTRACT_ID ?? "",
+  x402PriceUsd: process.env.X402_PRICE_USD ?? "0.001",
 
   defaultRewardAmount: Number(process.env.DEFAULT_REWARD_AMOUNT ?? "400"),
 
@@ -41,6 +48,17 @@ export const chainLive: boolean = (() => {
   if (rawChainMode === "live") return true;
   if (rawChainMode === "mock") return false;
   return hasCreds; // auto
+})();
+
+/**
+ * Whether the claims endpoint should actually enforce x402 payment.
+ * In `auto` mode this requires a facilitator URL + payTo address to be
+ * configured, so the project still runs out-of-the-box without them.
+ */
+export const x402Live: boolean = (() => {
+  const hasCreds = !!config.x402FacilitatorUrl && !!config.x402PayTo;
+  if (config.x402Mode === "live") return hasCreds;
+  return false; // mock
 })();
 
 export function networkPassphrase(): string {

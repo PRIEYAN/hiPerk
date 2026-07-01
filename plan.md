@@ -249,7 +249,8 @@ hiPerk/
 
 ## 13. Key risks & mitigations
 - **Risk:** Boundless/RISC Zero proving network integration adds setup time → **Mitigation:** have a local RISC Zero prover (dev mode) as a fallback so the demo doesn't depend on a live marketplace connection.
-- **Risk:** x402 settlement is EVM/Solana-native, not Stellar-native → **Mitigation:** be upfront in the pitch that x402 is used specifically for the *off-chain proving-market payment leg* (paying Boundless provers), not for the Stellar payout leg — the Stellar leg uses native Soroban contracts + fee-bump, which is the right tool for that job.
+- **Update:** x402 *is* natively supported on Stellar via `@x402/stellar` (Soroban token transfers, Built-on-Stellar-compatible facilitators) — implemented as a real payment gate on `POST /claims` (backend/src/services/x402Payment.ts), separate from the Boundless proving-market leg.
+- **Risk:** Bonsai (RISC Zero's original hosted prover) is deprecated; the replacement, Boundless, is a full on-chain proving marketplace requiring an Ethereum-compatible wallet/RPC, not a simple API key → **Mitigation:** `backend/prover/` targets Boundless for real outsourced proving; a local `risc0-zkvm` prover (`default_prover()`, no external market/wallet) remains the fallback if Boundless setup is too slow for the demo.
 - **Risk:** No real funder secured for demo → **Mitigation:** simulate with a testnet wallet acting as "SDF," clearly state this is the demo funding model.
 - **Risk:** Cross-contract calls (Perk ↔ Gatekeeper) add complexity → **Mitigation:** start with a single combined contract for MVP, split into two only if time allows.
 - **Risk:** Judges question privacy guarantees if backend sees raw email → **Mitigation:** clearly document that proof generation should happen with the email processed only inside the zkVM guest program's proving step, with the public proof output never containing the raw email content.

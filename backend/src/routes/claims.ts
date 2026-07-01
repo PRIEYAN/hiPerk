@@ -4,7 +4,7 @@ import { store } from "../models/store.js";
 import { Claim, toClaimView } from "../models/types.js";
 import { config } from "../config.js";
 import { generateProof } from "../services/riscZeroProver.js";
-import { payForProof } from "../services/x402Payment.js";
+import { claimsPaymentGate } from "../services/x402Payment.js";
 import * as stellar from "../services/stellarClient.js";
 
 export const claimsRouter = Router();
@@ -12,32 +12,40 @@ export const claimsRouter = Router();
 /**
  * POST /claims — developer submits PR-merge evidence.
  *
- * Pipeline: generateProof → payForProof (x402) → registerMember (Gatekeeper).
- * Stores a `pending` claim. If the module is `automatic`, payout is triggered
- * immediately (stretch behavior, implementation.md §9.3).
+ * Gated by x402: the request must carry a settled USDC micropayment (Stellar
+ * testnet) before it reaches this handler — see services/x402Payment.ts.
+ * Pipeline: generateProof → registerMember (Gatekeeper). Stores a `pending`
+ * claim. If the module is `automatic`, payout is triggered immediately
+ * (stretch behavior, implementation.md §9.3).
  *
  * Privacy: only commitment/nullifier are stored — never GitHub identity/email.
  */
-claimsRouter.post("/", async (req, res) => {
-  const { moduleId, evidenceText, payoutAddress } = req.body ?? {};
+claimsRouter.post("/", claimsPaymentGate(), async (req, res) => {
+  const { moduleId, evidenceText, payoutAddress, rawEmail, repoUrl, contributorSecret } =
+    req.body ?? {};
   const m = store.getModule(moduleId);
   if (!m) return res.status(404).json({ error: "module not found" });
   if (!evidenceText || typeof evidenceText !== "string") {
     return res.status(400).json({ error: "evidenceText required" });
   }
 
-  // 1. Prove (mock RISC Zero).
-  const proof = await generateProof({ evidenceText, repoId: m.repoId });
+  // 1. Prove. In PROVER_MODE=boundless, rawEmail/repoUrl/contributorSecret
+  // are sent to the real prover service (prover/); otherwise they're ignored
+  // and evidenceText drives the mock proof.
+  const proof = await generateProof({
+    evidenceText,
+    repoId: m.repoId,
+    rawEmail: typeof rawEmail === "string" ? rawEmail : undefined,
+    repoUrl: typeof repoUrl === "string" ? repoUrl : undefined,
+    contributorSecret: typeof contributorSecret === "string" ? contributorSecret : undefined,
+  });
 
   // 2. Double-claim guard (also enforced on-chain via nullifier).
   if (store.nullifierUsed(moduleId, proof.nullifier)) {
     return res.status(409).json({ error: "this evidence has already been claimed" });
   }
 
-  // 3. Pay the prover market (mock x402).
-  await payForProof(proof.proofId);
-
-  // 4. Register the anonymous membership commitment on-chain (fee-bumped).
+  // 3. Register the anonymous membership commitment on-chain (fee-bumped).
   try {
     await stellar.registerMember(m.repoId, proof.commitment);
   } catch (e) {
@@ -57,7 +65,7 @@ claimsRouter.post("/", async (req, res) => {
   };
   store.putClaim(claim);
 
-  // 5. Automatic approval mode → pay out immediately.
+  // 4. Automatic approval mode → pay out immediately.
   if (m.approvalMode === "automatic" && claim.payoutAddress) {
     await payoutClaim(claim, claim.payoutAddress, claim.amount).catch(() => {
       /* leave pending on failure */
