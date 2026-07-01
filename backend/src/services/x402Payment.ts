@@ -1,5 +1,48 @@
+import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
-import { config } from "../config.js";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
+import { config, x402Live } from "../config.js";
+
+/**
+ * x402 payment gate for the claims endpoint.
+ *
+ * Real (live): each `POST /claims` request must carry a settled x402 payment
+ * (a tiny USDC micropayment on Stellar) before it reaches the route handler.
+ * Verification/settlement is delegated to a Built-on-Stellar-compatible x402
+ * facilitator via `@x402/core`'s `HTTPFacilitatorClient` — this backend never
+ * holds contributor funds, it only declares the price and receiving address.
+ *
+ * Mock (no facilitator/payTo configured): passes every request through
+ * untouched, so the flow still runs end-to-end offline for demos.
+ */
+export function claimsPaymentGate() {
+  if (!x402Live) {
+    return (_req: Request, _res: Response, next: NextFunction) => next();
+  }
+
+  const facilitator = new HTTPFacilitatorClient({ url: config.x402FacilitatorUrl });
+  const server = new x402ResourceServer(facilitator).register(
+    config.x402Network as any,
+    new ExactStellarScheme(),
+  );
+
+  return paymentMiddleware(
+    {
+      "/": {
+        accepts: {
+          scheme: "exact",
+          network: config.x402Network as any,
+          payTo: config.x402PayTo,
+          price: config.x402PriceUsd,
+        },
+        description: "Pay to submit an anonymous contribution proof",
+      },
+    },
+    server,
+  );
+}
 
 export interface PaymentReceipt {
   paid: boolean;
@@ -8,25 +51,18 @@ export interface PaymentReceipt {
 }
 
 /**
- * MOCK x402 payment for the proving leg.
- *
- * x402 is the HTTP-402-native stablecoin payment protocol used to meter the
- * per-proof fee to the (Boundless) prover market — NOT for the Stellar payout
- * leg (plan.md §13). For the MVP we log the "payment" and return a receipt.
- *
- * STRETCH (real): attach an x402 payment header/tx to the proving HTTP request
- * per the x402 spec and verify the facilitator's settlement response.
+ * Legacy mock receipt helper, kept for the smoke script / places that still
+ * want a synthetic receipt id rather than reading settlement off the request.
  */
 export async function payForProof(
   proofRequestId: string,
-  amountUsdc = 0.05,
+  amountUsdc = Number(config.x402PriceUsd),
 ): Promise<PaymentReceipt> {
-  if (config.x402Mode === "live") {
-    // STRETCH: real x402 settlement here. Falls through to mock until implemented.
-  }
   const receiptId = randomUUID();
-  console.log(
-    `[x402:mock] paid ${amountUsdc} USDC for proof ${proofRequestId} -> receipt ${receiptId}`,
-  );
+  if (!x402Live) {
+    console.log(
+      `[x402:mock] paid ${amountUsdc} USDC for proof ${proofRequestId} -> receipt ${receiptId}`,
+    );
+  }
   return { paid: true, receiptId, amountUsdc };
 }
