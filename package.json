@@ -1,0 +1,23 @@
+{
+  "name": "hiperk",
+  "version": "1.0.0",
+  "description": "hiPerk monorepo",
+  "homepage": "https://github.com/PRIEYAN/hiPerk#readme",
+  "bugs": {
+    "url": "https://github.com/PRIEYAN/hiPerk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PRIEYAN/hiPerk.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build"
+  }
+}
