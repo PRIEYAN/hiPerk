@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 risc0-zkvm = { version = "3.0", default-features = false, features = ["std"] }
 serde = { version = "1.0", features = ["derive"] }
-sha2 = { version = "0.10", default-features = false }
+sha2 = "0.10"
 
 [[bin]]
 name = "prove-merge"

@@ -19,7 +19,7 @@ export const config = {
   adminPublicKey: process.env.ADMIN_PUBLIC_KEY ?? "",
   payoutTokenId: process.env.PAYOUT_TOKEN_ID ?? "",
 
-  proverMode: (process.env.PROVER_MODE ?? "mock") as "mock" | "boundless",
+  proverMode: (process.env.PROVER_MODE ?? "mock") as "mock" | "risc0",
   proverServiceUrl: process.env.PROVER_SERVICE_URL ?? "http://localhost:8080",
   x402Mode: (process.env.X402_MODE ?? "mock") as "mock" | "live",
 

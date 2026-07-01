@@ -1,11 +1,3 @@
-#![no_main]
-#![no_std]
-
-extern crate alloc;
-
-use alloc::format;
-use alloc::string::String;
-
 use risc0_zkvm::guest::env;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
