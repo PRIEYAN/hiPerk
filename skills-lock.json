@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "boundless": {
+      "source": "docs.boundless.network",
+      "sourceType": "well-known",
+      "computedHash": "882368205723c6a680e88e4394306cbd0509fe455476226338a9462e6a20241a"
+    }
+  }
+}
