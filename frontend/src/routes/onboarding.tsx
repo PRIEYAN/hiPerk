@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useApp, truncate, type Role } from "@/lib/store";
-import { connectFreighter } from "@/lib/freighter";
+import { connectFreighter, WrongNetworkError } from "@/lib/freighter";
 import { StarShape, BoltShape } from "@/components/Decorations";
 
 export const Route = createFileRoute("/onboarding")({
@@ -12,14 +12,22 @@ export const Route = createFileRoute("/onboarding")({
 function Onboarding() {
   const { wallet, setWallet, setRole } = useApp();
   const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [role, setLocalRole] = useState<Role | null>(null);
   const navigate = useNavigate();
 
   const handleConnect = async () => {
     setConnecting(true);
+    setConnectError(null);
     try {
       const addr = await connectFreighter();
       setWallet(addr);
+    } catch (e) {
+      if (e instanceof WrongNetworkError) {
+        setConnectError(e.message);
+      } else {
+        throw e;
+      }
     } finally {
       setConnecting(false);
     }
@@ -61,6 +69,9 @@ function Onboarding() {
               <p className="mt-4 text-xs text-foreground/50 text-center">
                 No Freighter installed? A demo wallet will be generated.
               </p>
+              {connectError && (
+                <p className="mt-4 text-xs text-red-600 text-center">{connectError}</p>
+              )}
             </>
           ) : (
             <>
