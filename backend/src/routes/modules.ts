@@ -1,9 +1,17 @@
 import { Router } from "express";
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 import { store } from "../models/store.js";
 import { Module, ApprovalMode } from "../models/types.js";
 import { config } from "../config.js";
 import * as stellar from "../services/stellarClient.js";
+
+// Symbol-safe id generator: nanoid's DEFAULT alphabet includes '-', which is
+// illegal in a Soroban Symbol; restrict to [A-Za-z0-9_] so module_id (a
+// cross-call storage key) can never be rejected on-chain.
+const symbolId = customAlphabet(
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_",
+  6,
+);
 
 export const modulesRouter = Router();
 
@@ -13,7 +21,7 @@ modulesRouter.post("/", async (req, res) => {
   if (!repoId) return res.status(400).json({ error: "repoId required" });
 
   const mode: ApprovalMode = approvalMode === "automatic" ? "automatic" : "manual";
-  const moduleId = `mod_${nanoid(6)}`;
+  const moduleId = `mod_${symbolId()}`;
   const token = rewardToken || config.payoutTokenId || "USDC";
 
   try {
