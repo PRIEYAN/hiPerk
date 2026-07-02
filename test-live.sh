@@ -20,8 +20,9 @@ ENV_FILE="backend/.env"
 if [ ! -f "$ENV_FILE" ]; then
   fail "$ENV_FILE not found"
 else
+  envval() { grep -E "^$1=" "$ENV_FILE" | cut -d= -f2- | tr -d '\r'; }
   check_set() {
-    val=$(grep -E "^$1=" "$ENV_FILE" | cut -d= -f2-)
+    val=$(envval "$1")
     if [ -z "$val" ]; then fail "$1 is empty"; else pass "$1 is set"; fi
   }
   check_set GATEKEEPER_CONTRACT_ID
@@ -31,15 +32,15 @@ else
   check_set PAYOUT_TOKEN_ID
   check_set X402_FACILITATOR_URL
   check_set X402_PAY_TO
-  proverMode=$(grep -E '^PROVER_MODE=' "$ENV_FILE" | cut -d= -f2-)
+  proverMode=$(envval PROVER_MODE)
   [ "$proverMode" = "risc0" ] && pass "PROVER_MODE=risc0" || fail "PROVER_MODE is '$proverMode', expected risc0"
-  chainMode=$(grep -E '^CHAIN_MODE=' "$ENV_FILE" | cut -d= -f2-)
+  chainMode=$(envval CHAIN_MODE)
   [ "$chainMode" = "live" ] && pass "CHAIN_MODE=live" || fail "CHAIN_MODE is '$chainMode', expected live"
 fi
 
 echo ""
 echo "== 2. relayer + admin account funded on testnet =="
-ADMIN_PUB=$(grep -E '^ADMIN_PUBLIC_KEY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
+ADMIN_PUB=$(grep -E '^ADMIN_PUBLIC_KEY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '\r')
 if [ -n "${ADMIN_PUB:-}" ]; then
   resp=$(curl -s "https://horizon-testnet.stellar.org/accounts/$ADMIN_PUB")
   echo "$resp" | grep -q '"sequence"' && pass "admin account exists on testnet ($ADMIN_PUB)" \
