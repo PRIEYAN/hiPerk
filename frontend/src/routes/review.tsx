@@ -1,4 +1,5 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useApp } from "@/lib/store";
 
@@ -8,17 +9,22 @@ export const Route = createFileRoute("/review")({
 });
 
 function Review() {
-  const { wallet, role, claims, modules, approveClaimApi, rejectClaimApi } = useApp();
+  const { wallet, role, claims, modules, approveClaimApi, rejectClaimApi, startPolling, conn } = useApp();
   const navigate = useNavigate();
+  useEffect(() => startPolling(), [startPolling]);
   if (!wallet || !role) return <Navigate to="/onboarding" />;
 
-  // moderator sees claims tied to modules they own (plus seed modules in demo)
-  const myModuleIds = new Set(modules.filter((m) => m.createdBy === wallet || m.createdBy.startsWith("GSEED")).map((m) => m.id));
-  const visible = claims.filter((c) => myModuleIds.has(c.moduleId));
+  // Claims across all on-chain modules (no per-creator identity in this MVP).
+  const moduleIds = new Set(modules.map((m) => m.id));
+  const visible = claims.filter((c) => moduleIds.has(c.moduleId));
 
   const handleApprove = async (id: string) => {
-    await approveClaimApi(id, wallet ?? undefined);
-    navigate({ to: "/claim/$id", params: { id } });
+    try {
+      await approveClaimApi(id, wallet ?? undefined);
+      navigate({ to: "/claim/$id", params: { id } });
+    } catch (e) {
+      alert(`Payout failed: ${(e as Error).message}`);
+    }
   };
 
   return (
@@ -29,8 +35,12 @@ function Review() {
         Anonymous claims across your modules. By design, no contributor identity is shown — only zk-verified proof of merge.
       </p>
 
-      {visible.length === 0 ? (
-        <div className="glass-card rounded-3xl p-10 text-center text-foreground/70">No pending claims.</div>
+      {conn === "offline" ? (
+        <div className="glass-card rounded-3xl p-10 text-center text-red-700">
+          Backend unreachable — cannot load live claims.
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="glass-card rounded-3xl p-10 text-center text-foreground/70">No claims yet.</div>
       ) : (
         <div className="grid md:grid-cols-2 gap-5">
           {visible.map((c) => (
@@ -63,7 +73,7 @@ function Review() {
               {c.status === "Pending review" && (
                 <div className="mt-5 flex gap-2">
                   <button
-                    onClick={() => rejectClaimApi(c.id)}
+                    onClick={() => rejectClaimApi(c.id).catch((e) => alert(`Reject failed: ${(e as Error).message}`))}
                     className="flex-1 rounded-full bg-white/60 border border-black/10 px-4 py-3 text-sm hover:bg-white/80"
                   >
                     Reject

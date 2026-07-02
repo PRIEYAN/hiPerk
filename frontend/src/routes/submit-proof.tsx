@@ -25,21 +25,29 @@ function SubmitProof() {
 
   const mod = modules.find((m) => m.id === selected);
 
+  const [error, setError] = useState<string | null>(null);
+
   const onGenerate = async () => {
     if (!mod) return;
     setGenerating(true);
-    // Backend runs the (mock) RISC Zero proof + x402 payment + on-chain
-    // register_member; falls back to local state if the backend is down.
-    const claim = await submitClaimApi({
-      moduleId: mod.id,
-      moduleName: mod.repo,
-      evidenceText: evidence,
-      amount,
-      ownerWallet: wallet,
-      payoutAddress: wallet,
-    });
-    setGenerating(false);
-    navigate({ to: "/claim/$id", params: { id: claim.id } });
+    setError(null);
+    try {
+      // Backend runs the RISC Zero proof + x402 payment gate + on-chain
+      // register_member. On failure we surface the real error, no fake claim.
+      const claim = await submitClaimApi({
+        moduleId: mod.id,
+        moduleName: mod.repo,
+        evidenceText: evidence,
+        amount,
+        ownerWallet: wallet,
+        payoutAddress: wallet,
+      });
+      navigate({ to: "/claim/$id", params: { id: claim.id } });
+    } catch (e) {
+      setError((e as Error).message || "proof submission failed");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -91,6 +99,11 @@ function SubmitProof() {
           >
             {generating ? "Generating zero-knowledge proof…" : "Generate proof →"}
           </button>
+          {error && (
+            <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 break-words">
+              {error}
+            </div>
+          )}
         </div>
 
         <aside className="md:col-span-2 glass-card rounded-3xl p-7">

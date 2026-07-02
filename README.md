@@ -1,245 +1,335 @@
-<p align="center">
-  <img src="assets/banner.png" alt="hiPerk" width="100%" />
-</p>
+<div align="center">
 
-<h1 align="center">hiPerk</h1>
+<img src="assets/banner.png" alt="hiPerk" width="100%" />
 
-<p align="center">
-  <b>Anonymous, gas-free contributor rewards on Stellar — powered by RISC Zero zero-knowledge proofs and x402 pay-per-proof metering.</b>
-</p>
+# hiPerk
 
-<p align="center">
-  <a href="#-what-it-is">What it is</a> ·
-  <a href="#-how-it-works">How it works</a> ·
-  <a href="#-the-zk-part-in-detail">The ZK part</a> ·
-  <a href="#-x402-pay-per-proof">x402</a> ·
-  <a href="#-quickstart">Quickstart</a> ·
-  <a href="#-repo-layout">Layout</a>
-</p>
+**Anonymous, gas-free rewards for open-source contributors on Stellar.**
+
+Prove you landed a merged pull request into a Stellar-ecosystem GitHub repository and get paid in USDC — without revealing your identity, and without paying any network fee.
+
+</div>
 
 ---
 
-## 💡 What it is
+## What it is
 
-**hiPerk lets a developer prove they landed a merged pull request in a Stellar-ecosystem GitHub repo — and get paid for it — without ever revealing who they are.**
+hiPerk pays open-source contributors for work that provably happened, while proving nothing about who did it.
 
-Open-source maintainers and funders (e.g. the Stellar Development Foundation, or individual project teams) fund a reward pool per repo. A contributor who gets a PR merged submits *proof of the merge* — not their identity — and the pool pays out USDC to any Stellar address they choose. The contributor never doxxes themselves, never pays a network fee, and never touches an on-chain wallet full of gas.
+A contributor submits a zero-knowledge proof that a specific GitHub pull request was merged into a specific repository. The proof reveals only an anonymous membership commitment and a per-claim nullifier — never the contributor's GitHub identity, email, or the raw notification the proof was built from. Payment is settled in USDC on Stellar through a fee-bump relayer, so the contributor pays no transaction fee.
 
-Three pieces make that possible, and each maps to a real technology in this repo:
+Three technologies carry the system, each present in this repository:
 
-| Requirement | How hiPerk solves it | Tech |
+1. **RISC Zero zkVM** — proves "a PR merged into repo X" from a GitHub merge-notification email, emitting only a commitment and a nullifier. The raw email and the contributor's secret never leave the proof boundary.
+2. **x402** — an HTTP-native stablecoin payment protocol that revives HTTP 402. `POST /claims` is metered per proof behind a USDC micropayment on Stellar, verified and settled by a facilitator. The backend never custodies funds; it only declares a price and a `payTo` address.
+3. **Stellar / Soroban** — a Gatekeeper contract and a Perk contract (Rust / WASM). Fee-bump transactions make the flow gas-free for the contributor.
+
+## Use case
+
+Under-resourced open-source projects want more contributors, but public bounties exclude developers who cannot or will not claim a reward publicly: employees of competing projects, contributors in restrictive jurisdictions, or anyone who simply values privacy.
+
+hiPerk proves the *work* — a merge — while proving nothing about the *worker*. A funder such as the Stellar Development Foundation or a project team sees only aggregate, anonymous claim statistics. The contributor collects a reward and remains unlinkable to the contribution.
+
+## Architecture
+
+hiPerk is four cooperating layers: a web frontend, a Node/TypeScript backend, a Rust prover host running the zkVM, and two Soroban contracts on Stellar.
+
+```mermaid
+graph TD
+  subgraph Client
+    FE["Frontend — TanStack Start + React<br/>onboarding · submit-proof · my-claims<br/>review · dashboard · claim/:id"]
+  end
+
+  subgraph Backend["Backend — Node + TypeScript (Express)"]
+    ROUTES["Routes<br/>modules.ts · claims.ts"]
+    PROVER_SVC["riscZeroProver.ts"]
+    X402_SVC["x402Payment.ts"]
+    STELLAR_SVC["stellarClient.ts"]
+    RELAYER["feeBumpRelayer.ts"]
+    ROUTES --> PROVER_SVC
+    ROUTES --> X402_SVC
+    ROUTES --> STELLAR_SVC
+    STELLAR_SVC --> RELAYER
+  end
+
+  subgraph ProverHost["Prover host — Rust (axum)"]
+    HOST["host/src/main.rs<br/>POST /prove"]
+    GUEST["guest: prove-merge<br/>RISC Zero zkVM"]
+    HOST --> GUEST
+  end
+
+  subgraph Stellar["Stellar / Soroban (testnet)"]
+    GK["Gatekeeper contract<br/>register_member · is_member"]
+    PERK["Perk contract<br/>create_module · fund_module · claim"]
+    SAC["USDC (SAC token)"]
+    PERK -->|is_member| GK
+    PERK -->|transfer| SAC
+  end
+
+  subgraph External
+    FAC["x402 facilitator"]
+  end
+
+  FE -->|HTTP + x402 payment| ROUTES
+  PROVER_SVC -->|POST /prove| HOST
+  X402_SVC -->|verify / settle| FAC
+  RELAYER -->|fee-bumped tx via Soroban RPC| GK
+  RELAYER -->|fee-bumped tx via Soroban RPC| PERK
+```
+
+- **Frontend** — a TanStack Start + React application serving the contributor portal and maintainer dashboard. Routes: onboarding, submit-proof, my-claims, review, dashboard, and `claim/$id` (TanStack file-route syntax).
+- **Backend** — Node + TypeScript on Express. Routes in [backend/src/routes/modules.ts](backend/src/routes/modules.ts) and [backend/src/routes/claims.ts](backend/src/routes/claims.ts); services in [backend/src/services/stellarClient.ts](backend/src/services/stellarClient.ts), [backend/src/services/feeBumpRelayer.ts](backend/src/services/feeBumpRelayer.ts), [backend/src/services/riscZeroProver.ts](backend/src/services/riscZeroProver.ts), and [backend/src/services/x402Payment.ts](backend/src/services/x402Payment.ts). Mode flags live in [backend/src/config.ts](backend/src/config.ts).
+- **Prover host** — a Rust workspace under [backend/prover](backend/prover). The zkVM guest program `prove-merge` is [backend/prover/methods/guest/src/main.rs](backend/prover/methods/guest/src/main.rs); the axum HTTP server exposing `POST /prove` is [backend/prover/host/src/main.rs](backend/prover/host/src/main.rs). Proving is local, via RISC Zero `default_prover()` — no external marketplace and no second chain, deliberately keeping the system Stellar-only.
+- **Contracts** — Soroban contracts in [blockchain/contracts/gatekeeper/src/lib.rs](blockchain/contracts/gatekeeper/src/lib.rs) and [blockchain/contracts/perk/src/lib.rs](blockchain/contracts/perk/src/lib.rs) (Rust, `no_std`).
+
+## Claim lifecycle
+
+A maintainer funds a module; a contributor pays per proof, generates a proof, registers an anonymous commitment, and is paid out either automatically or after manual review.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant M as Maintainer / moderator
+  participant C as Contributor
+  participant BE as Backend (claims.ts / modules.ts)
+  participant FAC as x402 facilitator
+  participant PV as Prover host (/prove)
+  participant GK as Gatekeeper contract
+  participant PK as Perk contract
+
+  M->>BE: POST /modules (repoId, token, approvalMode)
+  BE->>PK: create_module
+  M->>BE: POST /modules/:id/fund (amount)
+  BE->>PK: fund_module
+
+  C->>BE: POST /claims (evidence, payoutAddress?)
+  BE->>FAC: verify / settle USDC micropayment (x402 gate)
+  FAC-->>BE: payment settled
+  BE->>PV: generateProof (risc0) or derive deterministically (mock)
+  PV-->>BE: commitment, nullifier, receipt
+  BE->>BE: double-claim guard on nullifier
+  BE->>GK: register_member(commitment) via fee-bump relayer
+  BE-->>C: claim stored "pending"
+
+  alt approval_mode = automatic and payoutAddress present
+    BE->>PK: claim(...) via fee-bump relayer
+    PK->>GK: is_member(repo_id, commitment)
+    PK-->>BE: USDC paid to payout_address, nullifier spent
+  else manual
+    M->>BE: POST /claims/:id/approve
+    BE->>PK: claim(...) via fee-bump relayer
+    PK->>GK: is_member(repo_id, commitment)
+    PK-->>BE: USDC paid, nullifier spent
+  end
+```
+
+Endpoints, per [backend/src/routes/claims.ts](backend/src/routes/claims.ts) and [backend/src/routes/modules.ts](backend/src/routes/modules.ts):
+
+| Method | Route | Purpose |
 |---|---|---|
-| Prove "my PR merged" **without revealing who I am** | A zero-knowledge proof over a GitHub merge-notification email; only a commitment + nullifier leave the prover | **RISC Zero zkVM** |
-| Pay for that proof compute **without invoices or accounts** | The backend pays the prover per request over HTTP, settled in USDC | **x402** |
-| Pay out the reward **anonymously, instantly, gas-free** | Soroban contracts hold the pool and pay out; every tx is fee-bump sponsored | **Stellar / Soroban** |
+| `POST` | `/modules` | Maintainer creates a module — calls `Perk.create_module`. |
+| `POST` | `/modules/:id/fund` | Maintainer funds the module pool — calls `Perk.fund_module`. |
+| `GET` | `/modules` | List modules for the dashboard. |
+| `POST` | `/claims` | Contributor submits evidence; passes the x402 gate, generates a proof, guards the nullifier, and registers the commitment. Claim stored `pending`. |
+| `GET` | `/claims/:id` | Poll a claim's status. Returns no identity fields. |
+| `GET` | `/claims` | Anonymous review queue for moderators. |
+| `POST` | `/claims/:id/approve` | Moderator approves — calls `Perk.claim`, paying out USDC and spending the nullifier. |
+| `POST` | `/claims/:id/reject` | Moderator rejects. |
 
----
+If a module's `approval_mode` is `automatic` and a `payoutAddress` is present, payout happens immediately after proof registration; otherwise it waits for a moderator to approve.
 
-## 🎯 The real-world use case
+## Zero-knowledge design
 
-Under-resourced open-source repos struggle to attract contributors. Public bounty programs help — but they exclude a large slice of talented developers who **cannot or will not claim publicly**:
+The zero-knowledge layer answers one question — *did a pull request merge into this repository?* — and reveals nothing else.
 
-- engineers at competing companies,
-- contributors in restrictive jurisdictions,
-- people who simply don't want a permanent public record of "I work on crypto."
+The description below is scoped to `PROVER_MODE=risc0`, the real zkVM path. In the default offline mode (`PROVER_MODE=mock`) the backend derives the commitment and nullifier deterministically from the submitted evidence text rather than from a client-side secret; see [Configuration and modes](#configuration-and-modes).
 
-A normal bounty form forces you to reveal a GitHub identity and a wallet linked to your name. hiPerk removes that. You prove *the work happened* (a merge into the sponsored repo) while proving *nothing about who did it*. The funder gets an aggregate, anonymous view — "X claims paid, Y pool remaining" — and never learns *who* claimed.
+### Private in, public out
 
-> **Concrete flow:** SDF funds a pool for `stellar/js-stellar-sdk`. A developer at a rival exchange lands a bugfix PR there. GitHub emails them "your PR was merged." They paste that email into hiPerk, a ZK proof is generated, and USDC lands in a fresh Stellar address they control — with zero fees, and no link back to their employer or identity.
+The `prove-merge` guest program takes three private inputs and commits four public outputs. The private inputs are read into the zkVM and never appear in the journal.
 
----
+```mermaid
+graph LR
+  subgraph Private["Private inputs — never revealed"]
+    E["raw_email<br/>full GitHub merge notification"]
+    U["repo_url"]
+    S["contributor_secret<br/>random, client-side"]
+  end
 
-## ⚙️ How it works
+  subgraph Guest["prove-merge guest (RISC Zero zkVM)"]
+    V["verify_merge_notification()"]
+    H1["commitment = sha256(&quot;commitment:&quot; + repo_id + &quot;:&quot; + secret)"]
+    H2["nullifier = sha256(&quot;nullifier:&quot; + repo_id + &quot;:&quot; + secret)"]
+  end
 
-```
-┌──────────────────────┐
-│  Frontend (web app)   │  Contributor portal + maintainer dashboard  (TanStack Start / React)
-└───────────┬──────────┘
-            │  REST
-┌───────────▼──────────────────────────────────────────────┐
-│  Backend / API  (Node + TypeScript, Express)               │
-│  ─ orchestrates the whole claim pipeline                   │
-│  ─ pays the prover over x402                               │
-│  ─ signs + fee-bump-sponsors every Soroban transaction     │
-└───────┬───────────────────────────┬───────────────────────┘
-        │  POST /prove (x402-metered)│  Soroban RPC (fee-bumped)
-        ▼                            ▼
-┌────────────────────────┐   ┌───────────────────────────────┐
-│  Prover host (Rust)     │   │  Stellar testnet (Soroban)     │
-│  ─ RISC Zero zkVM        │   │  ─ Gatekeeper  (membership)     │
-│  ─ prove-merge guest     │   │  ─ Perk        (pool + payout)  │
-│  ─ local proving         │   │  ─ USDC SAC     (the token)     │
-└────────────────────────┘   └───────────────────────────────┘
-```
+  subgraph Public["Public journal — safe to reveal"]
+    RID["repo_id"]
+    CM["commitment (32 bytes)"]
+    NL["nullifier (32 bytes)"]
+    PM["pr_merged = true"]
+  end
 
-### End-to-end claim pipeline
-
-1. **PR merges.** GitHub sends the contributor the standard "your pull request was merged" email.
-2. **Submit evidence.** The contributor pastes that raw email (+ their repo URL + a client-side random secret) into the web app.
-3. **Pay for the proof (x402).** Before the claim endpoint does any work, the request passes an [x402](#-x402-pay-per-proof) payment gate — a tiny USDC micropayment on Stellar, settled over plain HTTP. No account, no invoice.
-4. **Generate the ZK proof (RISC Zero).** The backend calls the Rust **prover host**, which runs the `prove-merge` zkVM guest program. The guest verifies the email is a genuine GitHub merge notification for that repo and emits a public *journal* — a `commitment` and a `nullifier` — while the raw email and the contributor's secret **never leave the proof boundary**.
-5. **Register anonymous membership (Gatekeeper).** The backend submits the `commitment` to the **Gatekeeper** Soroban contract, which records "this anonymous commitment belongs to this repo's contributor group." No identity, no wallet linkage.
-6. **Claim the reward (Perk).** On approval, the backend calls the **Perk** contract's `claim`, which:
-   - cross-checks membership with the Gatekeeper (`is_member`),
-   - rejects a reused `nullifier` (so the same merged PR can't be paid twice),
-   - transfers USDC from the funded pool to the contributor's Stellar address.
-7. **Zero fees for the contributor.** Every Soroban transaction is wrapped in a **fee-bump transaction** paid by the app's relayer account, so the contributor's address never needs XLM for gas.
-8. **Anonymous dashboard.** The maintainer sees aggregate claim/pool stats — never *who* claimed.
-
-> **Trust model (hackathon MVP — "Option A hybrid"):** proof *verification* and orchestration run in a trusted backend relayer; the on-chain contracts stay minimal (membership bookkeeping, nullifier tracking, payout). Because both Soroban contracts **and** RISC Zero guests are written in Rust, there is a credible path to moving proof verification fully on-chain later (Option B) — see [plan.md](plan.md) §6.
-
----
-
-## 🔐 The ZK part, in detail
-
-This is the heart of hiPerk, so it's worth being precise about *what is proven*, *what stays secret*, and *how double-claiming is prevented*.
-
-### The zkVM guest program
-
-The proof is produced by a **RISC Zero zkVM guest program** — a small Rust program (`prove-merge`) that runs inside the zkVM. Whatever it reads as *private input* is never revealed; whatever it *commits to the journal* is the public, verifiable output.
-
-- **File:** [`backend/prover/methods/guest/src/main.rs`](backend/prover/methods/guest/src/main.rs)
-- **Private input (never revealed):**
-  - `raw_email` — the full raw GitHub merge-notification email, headers and all
-  - `repo_url` — the repo the PR was merged into
-  - `contributor_secret` — a random secret generated client-side
-- **Public output (the *journal* — safe to reveal):**
-  - `repo_id` — normalized repo identifier
-  - `commitment = sha256("commitment:" + repo_id + ":" + secret)` — the anonymous membership credential
-  - `nullifier  = sha256("nullifier:"  + repo_id + ":" + secret)` — a unique-per-claim tag
-  - `pr_merged: true`
-
-### What the proof actually asserts
-
-Inside the guest, `verify_merge_notification()` checks the email is a real GitHub PR-merge notification for the claimed repo. The zkVM then produces a **receipt** — a cryptographic attestation that *this exact program ran on some input and produced this journal*. The host re-verifies it against the program's image ID:
-
-```rust
-receipt.verify(PROVE_MERGE_ID)?;   // proves: the prove-merge program really ran and produced this journal
+  E --> V
+  U --> V
+  U --> RID
+  S --> H1
+  S --> H2
+  RID --> H1
+  RID --> H2
+  V --> PM
+  H1 --> CM
+  H2 --> NL
 ```
 
-So a verifier learns **"a merged PR into `repo_id` exists, attested by an email that passed the check"** — and learns **nothing** about the email contents, the contributor's GitHub handle, or their secret.
+### Guest inputs and outputs
 
-### Why a commitment *and* a nullifier?
+Private input, per [backend/prover/methods/guest/src/main.rs](backend/prover/methods/guest/src/main.rs):
 
-This split is the classic anonymity-plus-uniqueness pattern:
+- `raw_email` — the full raw GitHub merge-notification email, headers included.
+- `repo_url` — the repository URL as pasted by the contributor.
+- `contributor_secret` — a random secret generated client-side; only its hashes ever leave the guest.
 
-- **`commitment`** proves membership ("I am *a* verified contributor to this repo") without revealing *which* one. It's what gets registered in the Gatekeeper.
-- **`nullifier`** is deterministically derived from the same secret, so the *same* underlying claim always yields the *same* nullifier. The Perk contract marks a nullifier as spent on payout, so **the same merged PR can never be paid twice** — even though the contract never learns who the contributor is.
+Public journal output (safe to reveal, never traceable to a GitHub identity):
 
-Both are 32-byte SHA-256 outputs, carried on-chain as `BytesN<32>`.
+- `repo_id` — a sanitized identifier derived from `repo_url`.
+- `commitment = sha256("commitment:" + repo_id + ":" + contributor_secret)`.
+- `nullifier = sha256("nullifier:" + repo_id + ":" + contributor_secret)`.
+- `pr_merged = true`.
 
-### Local proving — no external marketplace
+Both `commitment` and `nullifier` are 32-byte SHA-256 digests, carried on-chain as `BytesN<32>`.
 
-hiPerk runs proving **locally** via RISC Zero's `default_prover()` on the prover host ([`backend/prover/host/src/main.rs`](backend/prover/host/src/main.rs)) — **no third-party proving marketplace and no second chain**. This is deliberate: the rest of hiPerk (contracts, payouts, x402) is Stellar-only, so proving shouldn't drag in an unrelated network. The host exposes one endpoint:
+### Roles of the two values
 
-```
-POST /prove  { raw_email, repo_url, contributor_secret }
-      → 200  { journal_hex, receipt_hex, commitment, nullifier, repo_id }
-```
+- **commitment** — an anonymous membership credential. The backend registers it in the Gatekeeper contract via `register_member`. It proves the holder belongs to a repository's verified contributor group without identifying them.
+- **nullifier** — a deterministic per-claim tag. The Perk contract marks it spent on payout under `DataKey::Nullifier(module_id, nullifier)`, so it prevents a repeat payout within a given module's pool — while the contract never learns who claimed. Because the value is derived from `repo_id` and the contributor's secret, the same contributor claiming the same merge always produces the same nullifier.
 
-The Node backend calls it when `PROVER_MODE=risc0` ([`backend/src/services/riscZeroProver.ts`](backend/src/services/riscZeroProver.ts)). In `PROVER_MODE=mock` (default) it derives the same commitment/nullifier shape deterministically off-chain, so the whole flow — including the double-claim guard — runs offline for demos.
+### Verification
 
-> ⚠️ **Honest status:** DKIM signature verification in the guest is currently **stubbed** — it checks the email's *structure* (sender, "merged" keyword, repo mention) but does **not yet** cryptographically verify GitHub's DKIM signature. Wire in real DKIM verification (parse the `DKIM-Signature` header, verify against GitHub's published public key with the `rsa`/`pkcs1` crates) before treating proofs as trustworthy beyond a demo. See [`backend/prover/README.md`](backend/prover/README.md).
+`verify_merge_notification()` checks that the email is a genuine GitHub PR-merge notification for the given repository. The zkVM produces a receipt; the prover host re-verifies it with `receipt.verify(PROVE_MERGE_ID)` before decoding the journal, and rejects the request if `pr_merged` is not `true`. In local proving mode the response returns the full bincode-serialized `Receipt` (re-verifiable against the image ID) rather than a compact on-chain SNARK seal — there is no on-chain verifier target in this mode.
 
----
+### Honest caveat — DKIM is stubbed
 
-## 💸 x402: pay-per-proof
+DKIM signature verification inside the guest is **currently stubbed**. `verify_merge_notification()` checks only the structural shape of the notification: that it comes from `notifications@github.com`, contains the keyword `merged`, and references the repository. It does **not** cryptographically verify GitHub's DKIM signature, so a hand-crafted email could pass this check.
 
-**[x402](https://www.x402.org/)** is an open, HTTP-native payment protocol — it revives the dormant HTTP `402 Payment Required` status code so a server can demand a stablecoin micropayment *inline* on a request, with no accounts, API keys, or invoices.
+Real DKIM verification — parsing the `DKIM-Signature` header and verifying it against GitHub's published `github.com._domainkey` public key with the `rsa` / `pkcs1` crates — must be implemented before proofs are trustworthy beyond a demo. See [backend/prover/README.md](backend/prover/README.md).
 
-hiPerk uses it as the **payment gate on `POST /claims`**. Generating a ZK proof costs real compute; x402 meters that cost per request:
+## x402 pay-per-proof
 
-- On an unpaid request, the endpoint replies `402 Payment Required` with the price and the receiving Stellar address.
-- The client attaches a settled USDC micropayment; a **facilitator** verifies and settles it on Stellar.
-- Only then does the request reach the proof pipeline.
+`POST /claims` is metered per proof behind a USDC micropayment. The backend declares a price and a `payTo` address; an x402 facilitator verifies and settles the payment on Stellar. The backend never custodies funds.
 
-This backend **never holds contributor funds** — it only declares a price and a `payTo` address, and delegates verification/settlement to an x402 facilitator via `@x402/core`'s `HTTPFacilitatorClient`, using the Stellar *exact* payment scheme (`@x402/stellar`). See [`backend/src/services/x402Payment.ts`](backend/src/services/x402Payment.ts).
+Enforcement is gated by configuration in [backend/src/config.ts](backend/src/config.ts). Payment is only enforced when `X402_MODE=live` **and** a valid `http(s)` `X402_FACILITATOR_URL` **and** `X402_PAY_TO` are set. Any other configuration falls through to a pass-through mock, so the flow runs end-to-end without a facilitator. A non-URL facilitator value is rejected with a warning and treated as mock, rather than crashing on `fetch`.
 
-Payment is gated behind config, so the whole app still runs end-to-end for demos when no facilitator is configured:
+## Stellar and the fee-bump relayer
 
-```
-X402_MODE=live  +  a valid http(s) X402_FACILITATOR_URL  +  X402_PAY_TO  →  real payment enforced
-anything else                                                             →  mock (pass-through)
-```
+Contributors never pay network fees. The relayer keypair (`RELAYER_SECRET_KEY`, never exposed to the frontend) is both the trusted contract caller and the fee sponsor.
 
----
+`sponsorAndSubmit()` in [backend/src/services/feeBumpRelayer.ts](backend/src/services/feeBumpRelayer.ts) wraps the relayer-signed inner transaction in a `FeeBumpTransaction` paid by the relayer, submits it via the Soroban RPC, and polls `getTransaction` until it reaches `SUCCESS` or `FAILED`. Every contributor-triggered on-chain action routes through this path, so contributors incur no network fee.
 
-## 🌟 Why Stellar for the payout leg
+## Smart contracts
 
-- **Genuinely gas-free for the recipient.** Native **fee-bump transactions** let the app's relayer sponsor every fee, so a contributor's address never needs XLM to receive a reward.
-- **Cheap, instant settlement** — ideal for paying out many small/medium reimbursements at scale.
-- **USDC rails already exist** on Stellar, so payouts are in a stable, useful asset.
-- **Rust all the way down.** Soroban contracts and RISC Zero guests are both Rust — a natural fit, and a real path toward on-chain proof verification later.
+Both contracts are Rust / Soroban / `no_std`.
 
----
+### Gatekeeper — [blockchain/contracts/gatekeeper/src/lib.rs](blockchain/contracts/gatekeeper/src/lib.rs)
 
-## 🚀 Quickstart
+Registers anonymous membership commitments per repository group after the backend has verified a proof.
 
-> **Prerequisites:** Node 18+, and (for real proving) the Rust + RISC Zero toolchain. Proving is typically built/run on a separate machine with that toolchain.
+- `register_member(caller, repo_id: Symbol, commitment: BytesN<32>)` — only the trusted relayer may call.
+- `is_member(repo_id, commitment) -> bool` — read-only membership check, used by the Perk contract.
+- Membership is stored under `DataKey::Member(repo_id, commitment)`.
+
+### Perk — [blockchain/contracts/perk/src/lib.rs](blockchain/contracts/perk/src/lib.rs)
+
+Holds a funded reward pool per module, validates anonymous claims, prevents double-claiming, and pays out.
+
+- `create_module(admin, module_id, repo_id, token: Address, approval_mode)` — creates a module bound to a repository and token.
+- `fund_module(funder, module_id, amount: i128)` — deposits tokens into the module pool.
+- `claim(caller, module_id, commitment, nullifier, payout_address, amount)` — the caller must be the trusted relayer. It cross-checks `Gatekeeper.is_member`, rejects a reused nullifier, and transfers the token from the pool to `payout_address` via the SAC token client.
+- `get_module(module_id)` — read-only pool and configuration view.
+
+The token is a Soroban Stellar Asset Contract (SAC) address, for example testnet USDC. `approval_mode` is `"manual"` or `"automatic"`; it is informational on-chain and enforced off-chain by the backend.
+
+## Configuration and modes
+
+All modes default to a fully offline mock so the entire flow runs with no chain, prover, or facilitator. Flags are resolved in [backend/src/config.ts](backend/src/config.ts).
+
+| Flag | Values | Behavior |
+|---|---|---|
+| `CHAIN_MODE` | `auto` \| `mock` \| `live` | `live` when contracts and the relayer key are set (or when forced). `auto` goes live only if `GATEKEEPER_CONTRACT_ID`, `PERK_CONTRACT_ID`, and `RELAYER_SECRET_KEY` are all present. |
+| `PROVER_MODE` | `mock` \| `risc0` | `mock` derives the commitment and nullifier deterministically from the submitted evidence text. `risc0` calls the prover host at `PROVER_SERVICE_URL`. |
+| `X402_MODE` | `mock` \| `live` | `live` enforcement requires a valid `http(s)` `X402_FACILITATOR_URL` and `X402_PAY_TO`; otherwise the gate is a pass-through mock. |
+
+Relevant environment variables include `STELLAR_NETWORK`, `SOROBAN_RPC_URL`, `GATEKEEPER_CONTRACT_ID`, `PERK_CONTRACT_ID`, `RELAYER_SECRET_KEY`, `ADMIN_PUBLIC_KEY`, `PROVER_MODE`, `PROVER_SERVICE_URL`, `X402_MODE`, `X402_FACILITATOR_URL`, `X402_PAY_TO`, `X402_NETWORK`, and `PORT`.
+
+## Quickstart
+
+The default configuration is fully offline mock — no chain, prover, or facilitator required.
 
 ```bash
-# 1. Backend
+# Backend (mock mode, out of the box)
 cd backend
-cp .env.example .env          # fill in contract IDs, relayer key, token, modes
 npm install
-npm run dev                   # http://localhost:4000
+npm run dev            # Express server on PORT (default 4000)
 
-# 2. Prover host (on the Rust/RISC Zero machine) — only for PROVER_MODE=risc0
-cd backend/prover
-cargo run --release --bin host   # http://localhost:8080
-
-# 3. Frontend
+# Frontend
 cd frontend
 npm install
-npm run dev
+npm run dev            # TanStack Start + React app
+
+# Optional: real local proving (RISC Zero toolchain required)
+curl -L https://risczero.com/install | bash
+rzup install
+cd backend/prover
+cargo run --release --bin host     # listens on :8080 (PROVER_LISTEN_ADDR to override)
+# then set PROVER_MODE=risc0 and PROVER_SERVICE_URL=http://localhost:8080
+
+# While iterating on the prover, skip real proving for fast unproven receipts:
+RISC0_DEV_MODE=1 cargo run --release --bin host
 ```
 
-### Modes at a glance
+For live-testnet readiness and a smoke test, see [test-live.sh](test-live.sh).
 
-| Env var | Values | Meaning |
-|---|---|---|
-| `CHAIN_MODE` | `auto` \| `mock` \| `live` | Whether to submit real Soroban transactions |
-| `PROVER_MODE` | `mock` \| `risc0` | Deterministic mock proof vs. real local RISC Zero proving |
-| `X402_MODE` | `mock` \| `live` | Whether to enforce the x402 payment gate on `/claims` |
-
-Everything defaults to a fully-offline **mock** path, so you can run the entire pipeline without a chain, a prover, or a facilitator. Flip each mode to `live`/`risc0` independently as you wire up real infrastructure.
-
-### Readiness check
-
-```bash
-./test-live.sh   # verifies .env, funded accounts, USDC trustline, prover + backend reachability, then runs the smoke test
-```
-
----
-
-## 🗂 Repo layout
+## Repository layout
 
 ```
 hiPerk/
-├── frontend/                 # TanStack Start + React web app (contributor portal + dashboard)
-│   └── src/routes/           # onboarding, submit-proof, my-claims, review, dashboard, claim.$id
-├── backend/                  # Node + TypeScript orchestration API (Express)
+├── assets/
+│   └── banner.png
+├── frontend/                          TanStack Start + React web app
+├── backend/
 │   ├── src/
-│   │   ├── routes/           # /modules, /claims
-│   │   ├── services/         # stellarClient, feeBumpRelayer, riscZeroProver, x402Payment
-│   │   └── config.ts         # mode flags (chain / prover / x402)
-│   ├── scripts/smoke.ts      # end-to-end smoke test
-│   └── prover/               # Rust RISC Zero prover (local proving, no marketplace)
-│       ├── methods/guest/    # the prove-merge zkVM guest program  ← the ZK logic
-│       └── host/             # HTTP server exposing POST /prove
+│   │   ├── config.ts                  mode flags (chain / prover / x402)
+│   │   ├── routes/
+│   │   │   ├── modules.ts             maintainer module + funding endpoints
+│   │   │   └── claims.ts              claim submission, review, payout
+│   │   └── services/
+│   │       ├── stellarClient.ts       Soroban contract calls
+│   │       ├── feeBumpRelayer.ts      fee-bump sponsorship + submission
+│   │       ├── riscZeroProver.ts      prover host client / mock derivation
+│   │       └── x402Payment.ts         x402 payment gate
+│   └── prover/                        Rust workspace (RISC Zero)
+│       ├── methods/guest/src/main.rs  prove-merge zkVM guest
+│       ├── host/src/main.rs           axum HTTP server (POST /prove)
+│       └── README.md                  prover setup + DKIM caveat
 ├── blockchain/
 │   └── contracts/
-│       ├── gatekeeper/       # anonymous membership registry (Soroban / Rust)
-│       └── perk/             # funded reward pool + nullifier-guarded payout
-├── plan.md                   # architecture + rationale
-├── implementation.md         # build-ready interfaces & data model
-└── test-live.sh              # live-testnet readiness checklist + smoke test
+│       ├── gatekeeper/src/lib.rs      membership registry
+│       └── perk/src/lib.rs            funded pools + anonymous payout
+├── plan.md                            architecture + rationale
+├── implementation.md                  interfaces + data model
+└── test-live.sh                       live-testnet checklist + smoke test
 ```
 
----
+## Status and limitations
 
-## 📚 Further reading
+- **DKIM verification is stubbed.** The guest only checks the structural shape of the merge notification, not GitHub's real DKIM signature. This must be implemented before proofs are trustworthy beyond a demo.
+- **Proving is local and CPU-bound.** Once real DKIM verification is added, local STARK proving can take seconds to tens of seconds depending on hardware. No GPU acceleration is wired in.
+- **Local proving emits a full `Receipt`, not a compact on-chain seal.** There is no on-chain verifier target in this mode; membership and nullifier enforcement are handled by the backend relayer and the Perk contract.
+- **The nullifier guard is per module.** It is marked spent under `DataKey::Nullifier(module_id, nullifier)`, preventing a repeat payout within a single module's pool.
+- **Defaults are mock.** Chain, prover, and x402 all default to offline mock so the full flow runs with no external configuration.
 
-- [`plan.md`](plan.md) — full architecture, trust model, and the "why Stellar" rationale
-- [`implementation.md`](implementation.md) — exact contract interfaces, API routes, and data model
-- [`backend/prover/README.md`](backend/prover/README.md) — prover setup and the DKIM-verification caveat
+## Further reading
+
+- [plan.md](plan.md) — architecture and design rationale.
+- [implementation.md](implementation.md) — contract interfaces, API routes, and the data model.
+- [backend/prover/README.md](backend/prover/README.md) — prover setup and the DKIM caveat.
+- [test-live.sh](test-live.sh) — live-testnet readiness checklist and smoke test.

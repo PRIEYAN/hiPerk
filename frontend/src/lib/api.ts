@@ -12,6 +12,8 @@ export interface ApiModule {
   approvalMode: "manual" | "automatic";
   rewardToken: string;
   status: "Open" | "Closed";
+  /** True when balance/state was read live from the Perk contract (vs the mirror). */
+  onChain?: boolean;
 }
 
 export interface ApiClaim {
