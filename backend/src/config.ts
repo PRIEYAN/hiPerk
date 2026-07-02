@@ -50,15 +50,35 @@ export const chainLive: boolean = (() => {
   return hasCreds; // auto
 })();
 
+/** A facilitator value only counts if it's a real http(s) URL, not a stray
+ * token/typo (e.g. an exported shell var shadowing an empty .env). Without this
+ * guard any non-empty string flips x402 "live" and crashes on fetch(url). */
+function isHttpUrl(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Whether the claims endpoint should actually enforce x402 payment.
- * In `auto` mode this requires a facilitator URL + payTo address to be
+ * In `auto` mode this requires a valid facilitator URL + payTo address to be
  * configured, so the project still runs out-of-the-box without them.
  */
 export const x402Live: boolean = (() => {
-  const hasCreds = !!config.x402FacilitatorUrl && !!config.x402PayTo;
-  if (config.x402Mode === "live") return hasCreds;
-  return false; // mock
+  if (config.x402Mode !== "live") return false; // mock
+  if (!config.x402PayTo) return false;
+  if (!config.x402FacilitatorUrl) return false;
+  if (!isHttpUrl(config.x402FacilitatorUrl)) {
+    console.warn(
+      `[x402] X402_FACILITATOR_URL is not a valid http(s) URL (got "${config.x402FacilitatorUrl}") — ` +
+        `staying in mock mode. Check for a stray exported X402_FACILITATOR_URL shell var shadowing .env.`,
+    );
+    return false;
+  }
+  return true;
 })();
 
 export function networkPassphrase(): string {

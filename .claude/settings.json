@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const d=require\\('dotenv'\\); console.log\\('override option exists; dotenv does NOT override existing process.env by default'\\)\")"
+    ]
+  }
+}
