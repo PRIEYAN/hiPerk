@@ -11,7 +11,8 @@
       "Bash(grep -rn '\"@/\\\\*\"\\\\|\"@\"\\\\|paths\\\\|alias' /c/Users/PRIEYAN/config/hiPerk/frontend/tsconfig*.json /c/Users/PRIEYAN/config/hiPerk/frontend/vite.config.ts)",
       "Bash(cp /c/Users/PRIEYAN/AppData/Local/Temp/claude/c--Users-PRIEYAN-config-hiPerk/6f04182a-d286-4222-a378-0aba900c82d0/scratchpad/probe.mjs /c/Users/PRIEYAN/config/hiPerk/backend/_probe.mjs)",
       "Bash(node _probe.mjs)",
-      "Bash(GROQ_API_KEY= npx tsx _reward-test.mts)"
+      "Bash(GROQ_API_KEY= npx tsx _reward-test.mts)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 4055 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Write-Output \"cleaned\")"
     ]
   }
 }
