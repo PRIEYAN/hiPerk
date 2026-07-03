@@ -23,6 +23,14 @@ modulesRouter.post("/", async (req, res) => {
   const mode: ApprovalMode = approvalMode === "automatic" ? "automatic" : "manual";
   const moduleId = `mod_${symbolId()}`;
   const token = rewardToken || config.payoutTokenId || "USDC";
+  if (chainLive && !/^[GC][A-Z2-7]{55}$/.test(token)) {
+    return res.status(400).json({
+      error:
+        `rewardToken '${token}' is not a valid Stellar address. ` +
+        "Set PAYOUT_TOKEN_ID in backend/.env to the token's C... contract ID " +
+        "(e.g. the USDC Stellar Asset Contract), or pass a valid rewardToken.",
+    });
+  }
 
   try {
     await stellar.createModule({ moduleId, repoId, token, approvalMode: mode });
