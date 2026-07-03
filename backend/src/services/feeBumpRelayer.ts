@@ -25,6 +25,33 @@ export function relayerKeypair(): Keypair {
   return _relayer;
 }
 
+let _admin: Keypair | null = null;
+/**
+ * Admin keypair used to satisfy `admin.require_auth()` in create_module /
+ * fund_module. Falls back to the relayer key when ADMIN_SECRET_KEY is unset —
+ * which only authorizes correctly if the on-chain config.admin IS the relayer
+ * account. When they differ (the common case), ADMIN_SECRET_KEY must be set to
+ * the secret seed of the account stored as config.admin on the Perk contract.
+ */
+export function adminKeypair(): Keypair {
+  if (_admin) return _admin;
+  _admin = config.adminSecretKey
+    ? Keypair.fromSecret(config.adminSecretKey)
+    : relayerKeypair();
+  return _admin;
+}
+
+/**
+ * All keypairs the backend can sign Soroban auth entries with, keyed by public
+ * key. invoke() signs each required auth entry with whichever of these matches
+ * the entry's address credential.
+ */
+export function signerKeypairs(): Keypair[] {
+  const keys = [relayerKeypair()];
+  if (config.adminSecretKey) keys.push(Keypair.fromSecret(config.adminSecretKey));
+  return keys;
+}
+
 export function relayerPublicKey(): string {
   return relayerKeypair().publicKey();
 }

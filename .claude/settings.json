@@ -13,7 +13,8 @@
       "Bash(node _probe.mjs)",
       "Bash(GROQ_API_KEY= npx tsx _reward-test.mts)",
       "PowerShell(Get-NetTCPConnection -LocalPort 4055 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Write-Output \"cleaned\")",
-      "Bash(bash -n /c/Users/PRIEYAN/config/hiPerk/blockchain/scripts/deploy.sh)"
+      "Bash(bash -n /c/Users/PRIEYAN/config/hiPerk/blockchain/scripts/deploy.sh)",
+      "Bash(node _cfg.mjs)"
     ]
   }
 }
