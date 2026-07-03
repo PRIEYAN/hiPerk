@@ -19,14 +19,30 @@ export const config = {
   adminPublicKey: process.env.ADMIN_PUBLIC_KEY ?? "",
   payoutTokenId: process.env.PAYOUT_TOKEN_ID ?? "",
 
-  proverMode: (process.env.PROVER_MODE ?? "mock") as "mock" | "boundless",
+  proverMode: (process.env.PROVER_MODE ?? "mock") as "mock" | "risc0",
+  proverServiceUrl: process.env.PROVER_SERVICE_URL ?? "http://localhost:8080",
   x402Mode: (process.env.X402_MODE ?? "mock") as "mock" | "live",
+
+  x402FacilitatorUrl: process.env.X402_FACILITATOR_URL ?? "",
+  x402Network: process.env.X402_NETWORK ?? "stellar:testnet",
+  x402PayTo: process.env.X402_PAY_TO ?? "",
+  x402UsdcContractId: process.env.X402_USDC_CONTRACT_ID ?? "",
+  x402PriceUsd: process.env.X402_PRICE_USD ?? "0.001",
 
   defaultRewardAmount: Number(process.env.DEFAULT_REWARD_AMOUNT ?? "400"),
 
   port: Number(process.env.PORT ?? "4000"),
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
+
+  // --- GitHub OAuth (off-chain PR-authorship verification) ---
+  githubClientId: process.env.GITHUB_CLIENT_ID ?? "",
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+  githubCallbackUrl:
+    process.env.GITHUB_CALLBACK_URL ?? `http://localhost:${Number(process.env.PORT ?? "4000")}/github/callback`,
+  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:8080",
 };
+
+export const githubOAuthConfigured: boolean = !!config.githubClientId && !!config.githubClientSecret;
 
 /**
  * Whether the backend should submit real on-chain transactions.
@@ -41,6 +57,37 @@ export const chainLive: boolean = (() => {
   if (rawChainMode === "live") return true;
   if (rawChainMode === "mock") return false;
   return hasCreds; // auto
+})();
+
+/** A facilitator value only counts if it's a real http(s) URL, not a stray
+ * token/typo (e.g. an exported shell var shadowing an empty .env). Without this
+ * guard any non-empty string flips x402 "live" and crashes on fetch(url). */
+function isHttpUrl(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the claims endpoint should actually enforce x402 payment.
+ * In `auto` mode this requires a valid facilitator URL + payTo address to be
+ * configured, so the project still runs out-of-the-box without them.
+ */
+export const x402Live: boolean = (() => {
+  if (config.x402Mode !== "live") return false; // mock
+  if (!config.x402PayTo) return false;
+  if (!config.x402FacilitatorUrl) return false;
+  if (!isHttpUrl(config.x402FacilitatorUrl)) {
+    console.warn(
+      `[x402] X402_FACILITATOR_URL is not a valid http(s) URL (got "${config.x402FacilitatorUrl}") — ` +
+        `staying in mock mode. Check for a stray exported X402_FACILITATOR_URL shell var shadowing .env.`,
+    );
+    return false;
+  }
+  return true;
 })();
 
 export function networkPassphrase(): string {

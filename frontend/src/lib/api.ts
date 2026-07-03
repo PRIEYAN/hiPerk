@@ -12,6 +12,8 @@ export interface ApiModule {
   approvalMode: "manual" | "automatic";
   rewardToken: string;
   status: "Open" | "Closed";
+  /** True when balance/state was read live from the Perk contract (vs the mirror). */
+  onChain?: boolean;
 }
 
 export interface ApiClaim {
@@ -21,6 +23,16 @@ export interface ApiClaim {
   status: "pending" | "approved" | "rejected" | "paid";
   createdAt: string;
   txHash?: string;
+}
+
+export interface GithubOAuthUrl {
+  url: string;
+}
+
+export interface GithubVerifyStatus {
+  verified: boolean;
+  pending?: boolean;
+  reason?: string;
 }
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -49,13 +61,25 @@ export const api = {
     const params = new URLSearchParams(q as Record<string, string>).toString();
     return req<ApiClaim[]>("GET", `/claims${params ? `?${params}` : ""}`);
   },
-  submitClaim: (b: { moduleId: string; evidenceText: string; payoutAddress?: string }) =>
-    req<{ claimId: string; status: string }>("POST", "/claims", b),
+  submitClaim: (b: {
+    moduleId: string;
+    evidenceText: string;
+    payoutAddress?: string;
+    githubVerificationState: string;
+  }) => req<{ claimId: string; status: string }>("POST", "/claims", b),
   getClaim: (claimId: string) => req<ApiClaim>("GET", `/claims/${claimId}`),
   approveClaim: (claimId: string, b?: { payoutAddress?: string; amount?: number }) =>
     req<{ status: string; txHash?: string }>("POST", `/claims/${claimId}/approve`, b ?? {}),
   rejectClaim: (claimId: string, reason?: string) =>
     req<{ status: string }>("POST", `/claims/${claimId}/reject`, { reason }),
+
+  getGithubOAuthUrl: (moduleId: string, prNumber: number) =>
+    req<GithubOAuthUrl>(
+      "GET",
+      `/github/oauth-url?moduleId=${encodeURIComponent(moduleId)}&prNumber=${prNumber}`,
+    ),
+  getGithubVerifyStatus: (state: string) =>
+    req<GithubVerifyStatus>("GET", `/github/verify-status?state=${encodeURIComponent(state)}`),
 };
 
 export { BASE as API_BASE };

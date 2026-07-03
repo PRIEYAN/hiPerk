@@ -12,14 +12,18 @@ export const Route = createFileRoute("/onboarding")({
 function Onboarding() {
   const { wallet, setWallet, setRole } = useApp();
   const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [role, setLocalRole] = useState<Role | null>(null);
   const navigate = useNavigate();
 
   const handleConnect = async () => {
     setConnecting(true);
+    setConnectError(null);
     try {
       const addr = await connectFreighter();
       setWallet(addr);
+    } catch (e) {
+      setConnectError(e instanceof Error ? e.message : "Failed to connect wallet.");
     } finally {
       setConnecting(false);
     }
@@ -59,8 +63,11 @@ function Onboarding() {
                 {connecting ? "Connecting…" : "Connect Freighter Wallet"}
               </button>
               <p className="mt-4 text-xs text-foreground/50 text-center">
-                No Freighter installed? A demo wallet will be generated.
+                Requires the Freighter browser extension, set to Stellar testnet.
               </p>
+              {connectError && (
+                <p className="mt-4 text-xs text-red-600 text-center">{connectError}</p>
+              )}
             </>
           ) : (
             <>

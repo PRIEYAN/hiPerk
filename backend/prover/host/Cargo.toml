@@ -1,0 +1,18 @@
+[package]
+name = "prover-host"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "host"
+path = "src/main.rs"
+
+[dependencies]
+methods = { path = "../methods" }
+risc0-zkvm = { version = "3.0", features = ["prove"] }
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+hex = "0.4"
+anyhow = "1.0"
+bincode = "1.3"

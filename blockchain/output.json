@@ -1,0 +1,81 @@
+//build test
+ℹ️  Build Summary:
+    Wasm File: target/wasm32v1-none/release/gatekeeper.wasm (3022 bytes optimized (original size was 3389 bytes))
+    Wasm Hash: 71f7efdbfb2e128c660091848ee6a20c70538cdf5748d2c0b52b7a47dd094310
+    Wasm Size: 3022 bytes optimized (original size was 3389 bytes)
+    Exported Functions: 6 found
+      • _
+      • initialize
+      • is_member
+      • register_member
+      • relayer
+      • set_relayer
+✅ Build Complete
+
+ℹ️  CARGO_BUILD_RUSTFLAGS=--remap-path-prefix=/home/prieyan/.cargo/registry/src= SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo rustc --manifest-path=contracts/perk/Cargo.toml --crate-type=cdylib --target=wasm32v1-none --release
+   Compiling perk v0.1.0 (/home/prieyan/weeb/hiPerk/blockchain/contracts/perk)
+warning: trait `Gatekeeper` is never used
+  --> contracts/perk/src/lib.rs:72:15
+   |
+72 |     pub trait Gatekeeper {
+   |               ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `perk` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.25s
+ℹ️  Build Summary:
+    Wasm File: target/wasm32v1-none/release/perk.wasm (6813 bytes optimized (original size was 7656 bytes))
+    Wasm Hash: 8f05be145c65bb72be7fbf2c3a5caa734f470870e5f99ba696b5b8c1cf4a1c6b
+    Wasm Size: 6813 bytes optimized (original size was 7656 bytes)
+    Exported Functions: 6 found
+      • _
+      • claim
+      • create_module
+      • fund_module
+      • get_module
+      • initialize
+✅ Build Complete
+
+//deployed 
+stellar contract deploy \                                                                                                                                                            0 :)
+  --wasm target/wasm32v1-none/release/gatekeeper.wasm \
+  --source prieyan \
+  --network testnet
+correct 'contract' to 'contracts'? [Yes/No/Abort/Edit] n
+ℹ️  Uploading contract WASM…
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: 54312e686d7280696001469db0854d611543deae4029cdb965da489d49b6012e
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/54312e686d7280696001469db0854d611543deae4029cdb965da489d49b6012e
+ℹ️  Deploying contract using wasm hash 71f7efdbfb2e128c660091848ee6a20c70538cdf5748d2c0b52b7a47dd094310
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: 709012a33aee370f2ffe319c8a3ee84fc90b961f4530195537f1a368a57618e2
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/709012a33aee370f2ffe319c8a3ee84fc90b961f4530195537f1a368a57618e2
+🔗 https://lab.stellar.org/r/testnet/contract/CC23WX5MWJ477K3SJHLBDPFCGCE5V36SX6ZRQTKXHF6GPFPKYN2H5HXL
+✅ Deployed!
+CC23WX5MWJ477K3SJHLBDPFCGCE5V36SX6ZRQTKXHF6GPFPKYN2H5HXL
+blockchain > stellar contract deploy \                                                                                                                                                            0 :)
+  --wasm target/wasm32v1-none/release/perk.wasm \
+  --source prieyan \
+  --network testnet
+correct 'contract' to 'contracts'? [Yes/No/Abort/Edit] n
+ℹ️  Uploading contract WASM…
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: 63d3ceb4c3d22e5bb253d8aa832b9173651fa87e0ab5768052d486c83215f63a
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/63d3ceb4c3d22e5bb253d8aa832b9173651fa87e0ab5768052d486c83215f63a
+ℹ️  Deploying contract using wasm hash 8f05be145c65bb72be7fbf2c3a5caa734f470870e5f99ba696b5b8c1cf4a1c6b
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: 20abf64c332e7c3ca2e0b3d5870a12b8bed9069ad45c8e9545da63064989a21f
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/20abf64c332e7c3ca2e0b3d5870a12b8bed9069ad45c8e9545da63064989a21f
+🔗 https://lab.stellar.org/r/testnet/contract/CDZRZHNOU6FU3JPAVJFAQ2EFENAZG4SCD5UJ6IW2G52FIX7EKTS2MRG5
+✅ Deployed!
+CDZRZHNOU6FU3JPAVJFAQ2EFENAZG4SCD5UJ6IW2G52FIX7EKTS2MRG5
+blockchain >                                                                                                                                                                                      0 :)

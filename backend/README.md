@@ -1,9 +1,10 @@
 # hiPerk — backend
 
 Orchestration API (Node + TypeScript + Express). Implements the Option A hybrid
-flow: receives proof requests, runs the RISC Zero prover (mock), meters the
-prover fee via x402 (mock), and submits fee-bump-sponsored Soroban transactions
-to the Gatekeeper + Perk contracts.
+flow: receives proof requests, runs the RISC Zero prover (mock), gates claim
+submission behind a real x402 payment (Stellar testnet USDC, via
+`@x402/stellar` + a Built-on-Stellar-compatible facilitator), and submits
+fee-bump-sponsored Soroban transactions to the Gatekeeper + Perk contracts.
 
 ## Run
 
@@ -51,9 +52,13 @@ No route, log, or record stores a GitHub identity/email next to a
 
 ## Services
 
-- `riscZeroProver.ts` — **mock** proof generation (deterministic commitment +
-  nullifier from evidence). Swap for Boundless later; signature is stable.
-- `x402Payment.ts` — **mock** per-proof stablecoin metering.
+- `riscZeroProver.ts` — **mock** proof generation by default (deterministic
+  commitment + nullifier from evidence). With `PROVER_MODE=risc0`, calls the
+  real, locally-run RISC Zero prover service in `prover/` instead (no
+  external marketplace/wallet) — see `prover/README.md`.
+- `x402Payment.ts` — **real** x402 payment gate on `POST /claims` when
+  `X402_MODE=live` and a facilitator URL + `payTo` address are configured;
+  otherwise passes requests through untouched (mock/offline demo mode).
 - `stellarClient.ts` — **real** Soroban invocations (Gatekeeper + Perk),
   simulated when chain is not configured.
 - `feeBumpRelayer.ts` — **real** fee-bump sponsorship: all contributor-facing

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const d=require\\('dotenv'\\); console.log\\('override option exists; dotenv does NOT override existing process.env by default'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(ls -la assets/)",
+      "Bash(find . -iname \"banner*\" -not -path \"*/node_modules/*\")"
+    ]
+  }
+}

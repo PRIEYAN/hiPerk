@@ -1,43 +1,82 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { nanoid } from "nanoid";
 import { store } from "../models/store.js";
 import { Claim, toClaimView } from "../models/types.js";
 import { config } from "../config.js";
 import { generateProof } from "../services/riscZeroProver.js";
-import { payForProof } from "../services/x402Payment.js";
+import { claimsPaymentGate } from "../services/x402Payment.js";
 import * as stellar from "../services/stellarClient.js";
+import * as githubVerification from "../services/githubVerification.js";
 
 export const claimsRouter = Router();
 
 /**
+ * Requires a completed, unexpired GitHub PR-authorship verification (see
+ * routes/github.ts) before a claim can be submitted. Runs before the x402
+ * payment gate so a developer is never charged for a claim that fails this
+ * check. Single-use: consumes the verification result either way.
+ */
+function requireGithubVerification(req: Request, res: Response, next: NextFunction) {
+  const { moduleId, githubVerificationState } = req.body ?? {};
+  if (!moduleId || typeof moduleId !== "string") {
+    return res.status(400).json({ error: "moduleId required" });
+  }
+  if (!githubVerificationState || typeof githubVerificationState !== "string") {
+    return res
+      .status(400)
+      .json({ error: "GitHub verification required — connect GitHub and verify your merged PR first" });
+  }
+  if (!githubVerification.consumeVerifiedResult(githubVerificationState, moduleId)) {
+    return res
+      .status(403)
+      .json({ error: "GitHub verification missing, expired, or failed — please reconnect GitHub" });
+  }
+  next();
+}
+
+/**
  * POST /claims — developer submits PR-merge evidence.
  *
- * Pipeline: generateProof → payForProof (x402) → registerMember (Gatekeeper).
- * Stores a `pending` claim. If the module is `automatic`, payout is triggered
- * immediately (stretch behavior, implementation.md §9.3).
+ * Gated by GitHub PR-authorship verification (off-chain, see routes/github.ts)
+ * and by x402: the request must carry a settled USDC micropayment (Stellar
+ * testnet) before it reaches this handler — see services/x402Payment.ts.
+ * Pipeline: generateProof → registerMember (Gatekeeper). Stores a `pending`
+ * claim. If the module is `automatic`, payout is triggered immediately
+ * (stretch behavior, implementation.md §9.3).
  *
  * Privacy: only commitment/nullifier are stored — never GitHub identity/email.
  */
-claimsRouter.post("/", async (req, res) => {
-  const { moduleId, evidenceText, payoutAddress } = req.body ?? {};
+claimsRouter.post("/", requireGithubVerification, claimsPaymentGate(), async (req, res) => {
+  const { moduleId, evidenceText, payoutAddress, rawEmail, repoUrl, contributorSecret } =
+    req.body ?? {};
   const m = store.getModule(moduleId);
   if (!m) return res.status(404).json({ error: "module not found" });
   if (!evidenceText || typeof evidenceText !== "string") {
     return res.status(400).json({ error: "evidenceText required" });
   }
 
-  // 1. Prove (mock RISC Zero).
-  const proof = await generateProof({ evidenceText, repoId: m.repoId });
+  // 1. Prove. In PROVER_MODE=boundless, rawEmail/repoUrl/contributorSecret
+  // are sent to the real prover service (prover/); otherwise they're ignored
+  // and evidenceText drives the mock proof.
+  let proof;
+  try {
+    proof = await generateProof({
+      evidenceText,
+      repoId: m.repoId,
+      rawEmail: typeof rawEmail === "string" ? rawEmail : undefined,
+      repoUrl: typeof repoUrl === "string" ? repoUrl : undefined,
+      contributorSecret: typeof contributorSecret === "string" ? contributorSecret : undefined,
+    });
+  } catch (e) {
+    return res.status(502).json({ error: `proof generation failed: ${(e as Error).message}` });
+  }
 
   // 2. Double-claim guard (also enforced on-chain via nullifier).
   if (store.nullifierUsed(moduleId, proof.nullifier)) {
     return res.status(409).json({ error: "this evidence has already been claimed" });
   }
 
-  // 3. Pay the prover market (mock x402).
-  await payForProof(proof.proofId);
-
-  // 4. Register the anonymous membership commitment on-chain (fee-bumped).
+  // 3. Register the anonymous membership commitment on-chain (fee-bumped).
   try {
     await stellar.registerMember(m.repoId, proof.commitment);
   } catch (e) {
@@ -57,7 +96,7 @@ claimsRouter.post("/", async (req, res) => {
   };
   store.putClaim(claim);
 
-  // 5. Automatic approval mode → pay out immediately.
+  // 4. Automatic approval mode → pay out immediately.
   if (m.approvalMode === "automatic" && claim.payoutAddress) {
     await payoutClaim(claim, claim.payoutAddress, claim.amount).catch(() => {
       /* leave pending on failure */

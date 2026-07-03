@@ -24,9 +24,11 @@ async function j(method: string, path: string, body?: unknown) {
 async function main() {
   console.log("health:", await j("GET", "/health"));
 
+  // Omit rewardToken so the backend uses its configured PAYOUT_TOKEN_ID (a real
+  // SAC contract id in live mode). Sending the literal "USDC" here breaks live
+  // mode, where the token is parsed as a Soroban address, not a label.
   const created = await j("POST", "/modules", {
     repoId: "stellar/smoke-test",
-    rewardToken: "USDC",
     approvalMode: "manual",
   });
   const moduleId = created.moduleId;
