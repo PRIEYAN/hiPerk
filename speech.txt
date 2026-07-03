@@ -1,0 +1,96 @@
+hiPerk — 2-Minute Demo Video Script
+====================================
+Total target: ~2:00. Word count is paced for a calm, clear delivery (~150 wpm).
+Lines in [brackets] are screen/action cues, not spoken.
+
+--------------------------------------------------------------------
+PART 1 — THE PITCH  (0:00 – 0:25)  [talking head or logo on screen]
+--------------------------------------------------------------------
+
+"Hi — this is hiPerk.
+
+It pays open-source contributors for work that provably happened,
+while revealing nothing about who did it.
+
+You prove that your pull request was merged into a repo — and you get
+paid in crypto on Stellar — without exposing your GitHub identity, and
+without paying a single network fee."
+
+
+--------------------------------------------------------------------
+PART 2 — THE TECH  (0:25 – 1:05)  [architecture diagram / code peeks]
+--------------------------------------------------------------------
+
+"Four technologies make that possible.
+
+First — a zero-knowledge proof, built with the RISC Zero zkVM. The proof
+takes your merge notification and a private secret, runs them inside the
+zkVM, and outputs only two things: an anonymous commitment, and a
+one-time nullifier. Your email, your identity, your secret — none of it
+ever leaves the proof boundary.
+
+Second — Stellar and Soroban. Two Rust smart contracts: a Gatekeeper that
+registers your anonymous membership, and a Perk contract that holds the
+reward pool and pays you out. A fee-bump relayer sponsors every
+transaction, so the contributor pays zero gas.
+
+Third — the nullifier is marked spent on-chain, so the same merge can
+never be claimed twice — and the contract still never learns who you are.
+
+And fourth — the part that makes it hands-off — Groq."
+
+
+--------------------------------------------------------------------
+PART 3 — THE GROQ + AUTOMATION STORY  (1:05 – 1:30)  [dashboard]
+--------------------------------------------------------------------
+
+"When a moderator creates a module, they set a reward pool — and that
+amount is escrowed on-chain the moment they click create.
+
+From there it's fully automated. When a contributor's merge is verified,
+we send the pull request's complexity — the size, the files changed — to
+the Groq API. Groq scores how significant the work is, and we pay out a
+small, fair slice of the pool automatically. The bigger the contribution,
+the bigger the reward. No manual approval, no haggling.
+
+And when the pool runs dry, the module closes itself."
+
+
+--------------------------------------------------------------------
+PART 4 — LIVE DEMO  (1:30 – 1:55)  [screen recording of the app]
+--------------------------------------------------------------------
+
+[Create a module with a reward pool]
+"So here I'm a moderator. I create a module for my repo and set a
+thousand-token reward pool. Click create — and it's escrowed."
+
+[Switch to developer, submit proof, verify]
+"Now as a developer, I pick the module, point to my merged pull request,
+and verify it."
+
+[Click generate proof — payout happens]
+"I generate my proof — and there it is. Groq scored the PR, the perk was
+calculated, and I was paid instantly. The pool balance drops by exactly
+that amount."
+
+
+--------------------------------------------------------------------
+PART 5 — CLOSE  (1:55 – 2:00)  [logo]
+--------------------------------------------------------------------
+
+"hiPerk. Prove the work, not the worker. Thanks for watching."
+
+
+====================================================================
+DELIVERY NOTES
+--------------------------------------------------------------------
+- Total spoken words ≈ 300, which lands right around 2:00 at a natural pace.
+- If you run long, cut PART 3's last line ("And when the pool runs dry…")
+  and the middle of PART 2's third paragraph.
+- Emphasize the four "First / Second / Third / Fourth" beats — they give
+  the video a spine and make the tech easy to follow.
+- Say "Groq" as "grock" (rhymes with "rock"), not "gee-roq".
+- Honesty note for judges if asked: in this demo build the proof, x402
+  payment, and on-chain settlement run in mock mode so nothing external
+  can fail mid-demo — the create → verify → Groq-sizing → payout → close
+  workflow is all real application logic.

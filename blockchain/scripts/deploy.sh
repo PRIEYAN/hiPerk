@@ -26,14 +26,20 @@ fi
 
 ADMIN_ADDR=$(stellar keys address "$ADMIN_IDENTITY")
 RELAYER_ADDR=$(stellar keys address "$RELAYER_IDENTITY")
-# Relayer SECRET seed (S...) — the backend signs + fee-bumps with this. Pulled
-# from the local stellar keystore so the printed .env is copy-paste ready.
+# SECRET seeds (S...) — the backend signs with these. Pulled from the local
+# stellar keystore so the printed .env is copy-paste ready.
 # `|| true` so a keystore that won't reveal the seed doesn't abort the deploy.
 RELAYER_SECRET=$(stellar keys show "$RELAYER_IDENTITY" 2>/dev/null || true)
+ADMIN_SECRET=$(stellar keys show "$ADMIN_IDENTITY" 2>/dev/null || true)
 
-echo "Admin:   $ADMIN_ADDR"
-echo "Relayer: $RELAYER_ADDR"
+echo "Admin:   $ADMIN_ADDR  (identity: $ADMIN_IDENTITY)"
+echo "Relayer: $RELAYER_ADDR  (identity: $RELAYER_IDENTITY)"
 echo "Network: $NETWORK  (RPC: $SOROBAN_RPC_URL)"
+if [ "$ADMIN_ADDR" = "$RELAYER_ADDR" ]; then
+  echo "NOTE: admin == relayer — a single secret authorizes create_module AND register_member/claim."
+else
+  echo "NOTE: admin != relayer — the backend needs BOTH secrets (ADMIN_SECRET_KEY + RELAYER_SECRET_KEY)."
+fi
 
 echo "==> Building contracts (wasm)"
 stellar contract build
@@ -80,6 +86,13 @@ else
   RELAYER_LINE="RELAYER_SECRET_KEY=   # <-- FILL IN: secret seed (S...) for '$RELAYER_IDENTITY' (run: stellar keys show $RELAYER_IDENTITY)"
 fi
 
+# ADMIN_SECRET_KEY authorizes create_module / fund_module (admin.require_auth).
+if [ -n "$ADMIN_SECRET" ]; then
+  ADMIN_LINE="ADMIN_SECRET_KEY=$ADMIN_SECRET"
+else
+  ADMIN_LINE="ADMIN_SECRET_KEY=   # <-- FILL IN: secret seed (S...) for '$ADMIN_IDENTITY' (run: stellar keys show $ADMIN_IDENTITY)"
+fi
+
 cat <<EOF
 
 ###############################################################################
@@ -112,6 +125,7 @@ PERK_CONTRACT_ID=$PERK_ID
 
 # --- Keys ---
 ADMIN_PUBLIC_KEY=$ADMIN_ADDR
+$ADMIN_LINE
 $RELAYER_LINE
 
 # --- Payout token (Stellar Asset Contract C... id) ---

@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Hard-pin the Nitro deploy target to Vercel so `vite build` emits the
+  // `.vercel/output/` Build Output API layout Vercel expects — instead of the
+  // lovable config's default `cloudflare-module` preset. See vercel.json.
+  nitro: { preset: "vercel" },
 });

@@ -49,7 +49,11 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
-  health: () => req<{ ok: boolean; chainLive: boolean }>("GET", "/health"),
+  health: () =>
+    req<{ ok: boolean; chainLive: boolean; proverMode?: string; x402Mode?: string }>(
+      "GET",
+      "/health",
+    ),
 
   listModules: () => req<ApiModule[]>("GET", "/modules"),
   createModule: (b: {
