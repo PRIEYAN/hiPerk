@@ -12,13 +12,14 @@ Two Rust/Soroban contracts implementing the Option A hybrid model from `plan.md`
 
 ## Build & test
 
-Requires the Rust toolchain + the `wasm32-unknown-unknown` target and the
-[`stellar` CLI](https://developers.stellar.org/docs/tools/cli):
+Requires the Rust toolchain and the
+[`stellar` CLI](https://developers.stellar.org/docs/tools/cli). Recent Soroban
+toolchains build to the `wasm32v1-none` target (older ones used
+`wasm32-unknown-unknown`); `stellar contract build` installs whichever it needs.
 
 ```bash
-rustup target add wasm32-unknown-unknown
 cargo test            # runs unit tests for both contracts
-stellar contract build  # produces target/wasm32-unknown-unknown/release/*.wasm
+stellar contract build  # produces target/wasm32v1-none/release/*.wasm
 ```
 
 ## Deploy to testnet

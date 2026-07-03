@@ -38,7 +38,19 @@ echo "Network: $NETWORK  (RPC: $SOROBAN_RPC_URL)"
 echo "==> Building contracts (wasm)"
 stellar contract build
 
-WASM_DIR="target/wasm32-unknown-unknown/release"
+# Resolve the release wasm dir. Newer Soroban toolchains build to the
+# `wasm32v1-none` target; older ones use `wasm32-unknown-unknown`. Prefer the
+# new target, fall back to the old, so the script works on either.
+if [ -f "target/wasm32v1-none/release/gatekeeper.wasm" ]; then
+  WASM_DIR="target/wasm32v1-none/release"
+elif [ -f "target/wasm32-unknown-unknown/release/gatekeeper.wasm" ]; then
+  WASM_DIR="target/wasm32-unknown-unknown/release"
+else
+  echo "❌ could not find built gatekeeper.wasm under target/wasm32v1-none/release or target/wasm32-unknown-unknown/release" >&2
+  echo "   (check the 'Wasm File:' path in the build summary above)" >&2
+  exit 1
+fi
+echo "Using wasm dir: $WASM_DIR"
 
 echo "==> Deploying Gatekeeper"
 GATEKEEPER_ID=$(stellar contract deploy \
