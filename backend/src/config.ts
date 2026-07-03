@@ -33,7 +33,16 @@ export const config = {
 
   port: Number(process.env.PORT ?? "4000"),
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
+
+  // --- GitHub OAuth (off-chain PR-authorship verification) ---
+  githubClientId: process.env.GITHUB_CLIENT_ID ?? "",
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+  githubCallbackUrl:
+    process.env.GITHUB_CALLBACK_URL ?? `http://localhost:${Number(process.env.PORT ?? "4000")}/github/callback`,
+  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:8080",
 };
+
+export const githubOAuthConfigured: boolean = !!config.githubClientId && !!config.githubClientSecret;
 
 /**
  * Whether the backend should submit real on-chain transactions.

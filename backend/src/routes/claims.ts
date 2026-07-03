@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { nanoid } from "nanoid";
 import { store } from "../models/store.js";
 import { Claim, toClaimView } from "../models/types.js";
@@ -6,13 +6,39 @@ import { config } from "../config.js";
 import { generateProof } from "../services/riscZeroProver.js";
 import { claimsPaymentGate } from "../services/x402Payment.js";
 import * as stellar from "../services/stellarClient.js";
+import * as githubVerification from "../services/githubVerification.js";
 
 export const claimsRouter = Router();
 
 /**
+ * Requires a completed, unexpired GitHub PR-authorship verification (see
+ * routes/github.ts) before a claim can be submitted. Runs before the x402
+ * payment gate so a developer is never charged for a claim that fails this
+ * check. Single-use: consumes the verification result either way.
+ */
+function requireGithubVerification(req: Request, res: Response, next: NextFunction) {
+  const { moduleId, githubVerificationState } = req.body ?? {};
+  if (!moduleId || typeof moduleId !== "string") {
+    return res.status(400).json({ error: "moduleId required" });
+  }
+  if (!githubVerificationState || typeof githubVerificationState !== "string") {
+    return res
+      .status(400)
+      .json({ error: "GitHub verification required — connect GitHub and verify your merged PR first" });
+  }
+  if (!githubVerification.consumeVerifiedResult(githubVerificationState, moduleId)) {
+    return res
+      .status(403)
+      .json({ error: "GitHub verification missing, expired, or failed — please reconnect GitHub" });
+  }
+  next();
+}
+
+/**
  * POST /claims — developer submits PR-merge evidence.
  *
- * Gated by x402: the request must carry a settled USDC micropayment (Stellar
+ * Gated by GitHub PR-authorship verification (off-chain, see routes/github.ts)
+ * and by x402: the request must carry a settled USDC micropayment (Stellar
  * testnet) before it reaches this handler — see services/x402Payment.ts.
  * Pipeline: generateProof → registerMember (Gatekeeper). Stores a `pending`
  * claim. If the module is `automatic`, payout is triggered immediately
@@ -20,7 +46,7 @@ export const claimsRouter = Router();
  *
  * Privacy: only commitment/nullifier are stored — never GitHub identity/email.
  */
-claimsRouter.post("/", claimsPaymentGate(), async (req, res) => {
+claimsRouter.post("/", requireGithubVerification, claimsPaymentGate(), async (req, res) => {
   const { moduleId, evidenceText, payoutAddress, rawEmail, repoUrl, contributorSecret } =
     req.body ?? {};
   const m = store.getModule(moduleId);
