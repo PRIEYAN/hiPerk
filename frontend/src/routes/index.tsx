@@ -69,7 +69,7 @@ function Landing() {
             <img
               src={stellarLogo}
               alt="Stellar"
-              className="animate-float w-28 drop-shadow-[0_20px_40px_rgba(0,0,0,0.35)]"
+              className="animate-float w-28 rounded-full drop-shadow-[0_20px_40px_rgba(0,0,0,0.35)]"
             />
           </div>
           <span>/PRIVATE BY DESIGN</span>

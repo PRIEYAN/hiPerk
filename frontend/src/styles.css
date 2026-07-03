@@ -119,14 +119,19 @@
     drop-shadow(-1px 0 0 oklch(0.7 0.2 200));
 }
 
-/* gentle floating motion for the hero logo */
+/* gentle floating motion + 3D spin for the hero logo */
 @keyframes float-y {
-  0%, 100% { transform: translateY(0) rotate(-1deg); }
-  50%      { transform: translateY(-14px) rotate(1deg); }
+  0%, 100% {
+    transform: perspective(600px) translateY(0) rotateY(0deg) rotateX(0deg);
+  }
+  50% {
+    transform: perspective(600px) translateY(-14px) rotateY(180deg) rotateX(8deg);
+  }
 }
 
 .animate-float {
-  animation: float-y 5s ease-in-out infinite;
+  transform-style: preserve-3d;
+  animation: float-y 6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

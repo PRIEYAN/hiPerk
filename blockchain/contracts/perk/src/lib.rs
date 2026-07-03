@@ -9,7 +9,8 @@
 //! for `claim`, acting on behalf of the contributor after off-chain approval.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, token, Address, BytesN, Env, Symbol,
+    contract, contracterror, contractimpl, contracttype, token, Address, BytesN, Env, String,
+    Symbol, Vec,
 };
 
 #[contracterror]
@@ -36,6 +37,11 @@ enum DataKey {
     Module(Symbol),
     /// Nullifier-spent flag keyed by (module_id, nullifier).
     Nullifier(Symbol, BytesN<32>),
+    /// On-chain index of every module_id ever created, in creation order.
+    /// Soroban cannot enumerate storage keys, so this vector IS the "list all
+    /// modules" capability — it lets any client (on any machine) read the full
+    /// module set live from the contract, with no off-chain index required.
+    ModuleIndex,
 }
 
 #[contracttype]
@@ -50,7 +56,11 @@ pub struct Config {
 #[derive(Clone)]
 pub struct ModulePool {
     pub module_id: Symbol,
-    pub repo_id: Symbol,
+    /// Full human-readable repo id (e.g. "stellar/smoke-test"), stored as a
+    /// String so it is byte-identical on every machine reading the contract.
+    /// (A Symbol would force lossy sanitization of '/', '-', '.'; String does
+    /// not, so no off-chain name recovery is needed.)
+    pub repo_id: String,
     pub funder: Address,
     pub token: Address,
     pub balance: i128,
@@ -66,11 +76,11 @@ pub struct ModulePool {
 // Soroban dispatches cross-contract calls by contract ID + function name, so a
 // matching signature here is all that's required for the on-chain call.
 mod gatekeeper {
-    use soroban_sdk::{contractclient, BytesN, Env, Symbol};
+    use soroban_sdk::{contractclient, BytesN, Env, String};
 
     #[contractclient(name = "GatekeeperClient")]
     pub trait Gatekeeper {
-        fn is_member(env: Env, repo_id: Symbol, commitment: BytesN<32>) -> bool;
+        fn is_member(env: Env, repo_id: String, commitment: BytesN<32>) -> bool;
     }
 }
 
@@ -108,7 +118,7 @@ impl PerkContract {
         env: Env,
         admin: Address,
         module_id: Symbol,
-        repo_id: Symbol,
+        repo_id: String,
         token: Address,
         approval_mode: Symbol,
     ) -> Result<(), Error> {
@@ -134,7 +144,20 @@ impl PerkContract {
         };
         env.storage()
             .persistent()
-            .set(&DataKey::Module(module_id), &pool);
+            .set(&DataKey::Module(module_id.clone()), &pool);
+
+        // Append to the on-chain index so `list_modules` can enumerate every
+        // module. This is what makes the module set shared + live across all
+        // clients/machines without any off-chain index.
+        let mut index: Vec<Symbol> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ModuleIndex)
+            .unwrap_or_else(|| Vec::new(&env));
+        index.push_back(module_id);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ModuleIndex, &index);
         Ok(())
     }
 
@@ -216,6 +239,27 @@ impl PerkContract {
     /// Read-only: current pool balance + module config for the dashboard.
     pub fn get_module(env: Env, module_id: Symbol) -> Result<ModulePool, Error> {
         Self::module(&env, &module_id)
+    }
+
+    /// Read-only: every module's full pool, in creation order. Backed by the
+    /// on-chain `ModuleIndex`, so any client on any machine gets the identical,
+    /// live module set directly from the contract — no off-chain index needed.
+    /// Returns an empty vec before the first module is created.
+    pub fn list_modules(env: Env) -> Vec<ModulePool> {
+        let index: Vec<Symbol> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ModuleIndex)
+            .unwrap_or_else(|| Vec::new(&env));
+        let mut out: Vec<ModulePool> = Vec::new(&env);
+        for id in index.iter() {
+            // Every id in the index was set alongside its pool, so this is
+            // always present; skip defensively rather than panic if not.
+            if let Some(pool) = env.storage().persistent().get(&DataKey::Module(id)) {
+                out.push_back(pool);
+            }
+        }
+        out
     }
 
     fn config(env: &Env) -> Result<Config, Error> {

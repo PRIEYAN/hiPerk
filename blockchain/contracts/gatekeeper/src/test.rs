@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, Symbol};
+use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
 
 fn setup() -> (Env, GatekeeperContractClient<'static>, Address, Address) {
     let env = Env::default();

@@ -8,7 +8,9 @@
       "Bash(curl -s -m 3 http://localhost:4000/health)",
       "Bash(curl -s -m 5 -X POST http://localhost:4000/modules -H \"content-type: application/json\" -d '{\"repoId\":\"test/repo\",\"rewardToken\":\"USDC\",\"approvalMode\":\"manual\"}')",
       "Bash(echo \"exit: $?\")",
-      "Bash(grep -rn '\"@/\\\\*\"\\\\|\"@\"\\\\|paths\\\\|alias' /c/Users/PRIEYAN/config/hiPerk/frontend/tsconfig*.json /c/Users/PRIEYAN/config/hiPerk/frontend/vite.config.ts)"
+      "Bash(grep -rn '\"@/\\\\*\"\\\\|\"@\"\\\\|paths\\\\|alias' /c/Users/PRIEYAN/config/hiPerk/frontend/tsconfig*.json /c/Users/PRIEYAN/config/hiPerk/frontend/vite.config.ts)",
+      "Bash(cp /c/Users/PRIEYAN/AppData/Local/Temp/claude/c--Users-PRIEYAN-config-hiPerk/6f04182a-d286-4222-a378-0aba900c82d0/scratchpad/probe.mjs /c/Users/PRIEYAN/config/hiPerk/backend/_probe.mjs)",
+      "Bash(node _probe.mjs)"
     ]
   }
 }
