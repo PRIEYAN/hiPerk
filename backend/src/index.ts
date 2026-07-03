@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
-import { config, chainLive } from "./config.js";
+import { config, chainLive, githubOAuthConfigured } from "./config.js";
 import { modulesRouter } from "./routes/modules.js";
 import { claimsRouter } from "./routes/claims.js";
+import { githubRouter } from "./routes/github.js";
 
 const app = express();
 app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin.split(",") }));
@@ -20,6 +21,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/modules", modulesRouter);
 app.use("/claims", claimsRouter);
+app.use("/github", githubRouter);
 
 // Fallback error handler.
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -34,5 +36,9 @@ app.listen(config.port, () => {
   );
   if (!chainLive) {
     console.log("  (set GATEKEEPER_CONTRACT_ID, PERK_CONTRACT_ID, RELAYER_SECRET_KEY for live chain)");
+  }
+  console.log(`  github oauth=${githubOAuthConfigured ? "configured" : "NOT CONFIGURED"}`);
+  if (!githubOAuthConfigured) {
+    console.log("  (set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET for PR-authorship verification)");
   }
 });

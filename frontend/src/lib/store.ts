@@ -59,6 +59,7 @@ interface State {
     amount: number;
     ownerWallet: string;
     payoutAddress?: string;
+    githubVerificationState: string;
   }) => Promise<Claim>;
   approveClaimApi: (id: string, payoutAddress?: string) => Promise<void>;
   rejectClaimApi: (id: string, reason?: string) => Promise<void>;
@@ -149,8 +150,16 @@ export const useApp = create<State>()(
         );
       },
 
-      submitClaimApi: async ({ moduleId, moduleName, amount, ownerWallet, payoutAddress, evidenceText }) => {
-        const res = await api.submitClaim({ moduleId, evidenceText, payoutAddress });
+      submitClaimApi: async ({
+        moduleId,
+        moduleName,
+        amount,
+        ownerWallet,
+        payoutAddress,
+        evidenceText,
+        githubVerificationState,
+      }) => {
+        const res = await api.submitClaim({ moduleId, evidenceText, payoutAddress, githubVerificationState });
         const cl: Claim = {
           id: res.claimId,
           moduleId,
