@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useApp, truncate, type Role } from "@/lib/store";
-import { connectFreighter, WrongNetworkError } from "@/lib/freighter";
+import { connectFreighter } from "@/lib/freighter";
 import { StarShape, BoltShape } from "@/components/Decorations";
 
 export const Route = createFileRoute("/onboarding")({
@@ -23,11 +23,7 @@ function Onboarding() {
       const addr = await connectFreighter();
       setWallet(addr);
     } catch (e) {
-      if (e instanceof WrongNetworkError) {
-        setConnectError(e.message);
-      } else {
-        throw e;
-      }
+      setConnectError(e instanceof Error ? e.message : "Failed to connect wallet.");
     } finally {
       setConnecting(false);
     }
@@ -67,7 +63,7 @@ function Onboarding() {
                 {connecting ? "Connecting…" : "Connect Freighter Wallet"}
               </button>
               <p className="mt-4 text-xs text-foreground/50 text-center">
-                No Freighter installed? A demo wallet will be generated.
+                Requires the Freighter browser extension, set to Stellar testnet.
               </p>
               {connectError && (
                 <p className="mt-4 text-xs text-red-600 text-center">{connectError}</p>

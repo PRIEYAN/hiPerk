@@ -4,8 +4,8 @@ export class WrongNetworkError extends Error {
   }
 }
 
-// Real Freighter connection (browser only). Falls back to a mock address
-// if the extension isn't installed so the flow stays clickable.
+// Real Freighter connection (browser only). Throws if the extension isn't
+// installed or the user rejects access — callers must surface the error.
 export async function connectFreighter(): Promise<string> {
   try {
     const mod = await import("@stellar/freighter-api");
@@ -43,7 +43,6 @@ export async function connectFreighter(): Promise<string> {
     throw new Error("Freighter not available");
   } catch (e) {
     if (e instanceof WrongNetworkError) throw e;
-    // mock address so demo continues
-    return "GDEMOXX" + Math.random().toString(36).slice(2, 10).toUpperCase() + "STELLAR";
+    throw new Error("Could not connect to Freighter. Make sure the extension is installed and unlocked.");
   }
 }

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { api, type ApiClaim, type ApiModule } from "./api";
 
 export type Role = "developer" | "moderator";
@@ -80,102 +81,114 @@ const moduleFromApi = (m: ApiModule): Module => ({
   onChain: Boolean(m.onChain),
 });
 
-export const useApp = create<State>((set, get) => ({
-  wallet: null,
-  role: null,
-  modules: [],
-  claims: [],
-  conn: "idle",
-  lastError: null,
-  lastSyncedAt: null,
+export const useApp = create<State>()(
+  persist(
+    (set, get) => ({
+      wallet: null,
+      role: null,
+      modules: [],
+      claims: [],
+      conn: "idle",
+      lastError: null,
+      lastSyncedAt: null,
 
-  setWallet: (w) => set({ wallet: w }),
-  setRole: (r) => set({ role: r }),
-  reset: () => set({ wallet: null, role: null }),
+      setWallet: (w) => set({ wallet: w }),
+      setRole: (r) => set({ role: r }),
+      reset: () => set({ wallet: null, role: null }),
 
-  loadFromBackend: async () => {
-    if (get().conn === "idle") set({ conn: "loading" });
-    try {
-      const [mods, claims] = await Promise.all([api.listModules(), api.listClaims()]);
-      const modules = mods.map(moduleFromApi);
-      const nameById = new Map(modules.map((m) => [m.id, m.repo]));
-      const mapped: Claim[] = claims.map((c) => ({
-        id: c.claimId,
-        moduleId: c.moduleId,
-        moduleName: nameById.get(c.moduleId) ?? c.moduleId,
-        amount: c.amount,
-        status: STATUS_FROM_API[c.status],
-        txRef: c.txHash,
-        ownerWallet: get().wallet ?? "anon",
-      }));
-      set({ modules, claims: mapped, conn: "online", lastError: null, lastSyncedAt: Date.now() });
-    } catch (e) {
-      // No fake fallback — surface that live data is unavailable.
-      set({ conn: "offline", lastError: (e as Error).message });
-    }
-  },
+      loadFromBackend: async () => {
+        if (get().conn === "idle") set({ conn: "loading" });
+        try {
+          const [mods, claims] = await Promise.all([api.listModules(), api.listClaims()]);
+          const modules = mods.map(moduleFromApi);
+          const nameById = new Map(modules.map((m) => [m.id, m.repo]));
+          const mapped: Claim[] = claims.map((c) => ({
+            id: c.claimId,
+            moduleId: c.moduleId,
+            moduleName: nameById.get(c.moduleId) ?? c.moduleId,
+            amount: c.amount,
+            status: STATUS_FROM_API[c.status],
+            txRef: c.txHash,
+            ownerWallet: get().wallet ?? "anon",
+          }));
+          set({ modules, claims: mapped, conn: "online", lastError: null, lastSyncedAt: Date.now() });
+        } catch (e) {
+          // No fake fallback — surface that live data is unavailable.
+          set({ conn: "offline", lastError: (e as Error).message });
+        }
+      },
 
-  startPolling: (ms = 8000) => {
-    void get().loadFromBackend();
-    const timer = setInterval(() => void get().loadFromBackend(), ms);
-    return () => clearInterval(timer);
-  },
+      startPolling: (ms = 8000) => {
+        void get().loadFromBackend();
+        const timer = setInterval(() => void get().loadFromBackend(), ms);
+        return () => clearInterval(timer);
+      },
 
-  createModuleApi: async (m) => {
-    const res = await api.createModule({
-      repoId: m.repo,
-      approvalMode: m.approvalMode,
-      createdBy: m.createdBy,
-    });
-    if (m.rewardPool > 0) {
-      await api.fundModule(res.moduleId, m.rewardPool);
-    }
-    // Re-read live so the new module shows real on-chain state immediately.
-    await get().loadFromBackend();
-    const created = get().modules.find((x) => x.id === res.moduleId);
-    return (
-      created ?? {
-        id: res.moduleId,
-        repo: m.repo,
-        rewardPool: m.rewardPool,
-        approvalMode: m.approvalMode,
-        status: "Open",
-        createdBy: m.createdBy,
-        onChain: false,
-      }
-    );
-  },
+      createModuleApi: async (m) => {
+        const res = await api.createModule({
+          repoId: m.repo,
+          approvalMode: m.approvalMode,
+          createdBy: m.createdBy,
+        });
+        if (m.rewardPool > 0) {
+          await api.fundModule(res.moduleId, m.rewardPool);
+        }
+        // Re-read live so the new module shows real on-chain state immediately.
+        await get().loadFromBackend();
+        const created = get().modules.find((x) => x.id === res.moduleId);
+        return (
+          created ?? {
+            id: res.moduleId,
+            repo: m.repo,
+            rewardPool: m.rewardPool,
+            approvalMode: m.approvalMode,
+            status: "Open",
+            createdBy: m.createdBy,
+            onChain: false,
+          }
+        );
+      },
 
-  submitClaimApi: async ({ moduleId, moduleName, amount, ownerWallet, payoutAddress, evidenceText }) => {
-    const res = await api.submitClaim({ moduleId, evidenceText, payoutAddress });
-    const cl: Claim = {
-      id: res.claimId,
-      moduleId,
-      moduleName,
-      amount,
-      status: STATUS_FROM_API[(res.status as ApiClaim["status"]) ?? "pending"],
-      ownerWallet,
-    };
-    set((s) => ({ claims: [cl, ...s.claims.filter((c) => c.id !== cl.id)] }));
-    return cl;
-  },
+      submitClaimApi: async ({ moduleId, moduleName, amount, ownerWallet, payoutAddress, evidenceText }) => {
+        const res = await api.submitClaim({ moduleId, evidenceText, payoutAddress });
+        const cl: Claim = {
+          id: res.claimId,
+          moduleId,
+          moduleName,
+          amount,
+          status: STATUS_FROM_API[(res.status as ApiClaim["status"]) ?? "pending"],
+          ownerWallet,
+        };
+        set((s) => ({ claims: [cl, ...s.claims.filter((c) => c.id !== cl.id)] }));
+        return cl;
+      },
 
-  approveClaimApi: async (id, payoutAddress) => {
-    const res = await api.approveClaim(id, payoutAddress ? { payoutAddress } : undefined);
-    set((s) => ({
-      claims: s.claims.map((c) =>
-        c.id === id
-          ? { ...c, status: STATUS_FROM_API[(res.status as ApiClaim["status"]) ?? "paid"], txRef: res.txHash }
-          : c,
-      ),
-    }));
-    await get().loadFromBackend(); // refresh pool balances after payout
-  },
+      approveClaimApi: async (id, payoutAddress) => {
+        const res = await api.approveClaim(id, payoutAddress ? { payoutAddress } : undefined);
+        set((s) => ({
+          claims: s.claims.map((c) =>
+            c.id === id
+              ? { ...c, status: STATUS_FROM_API[(res.status as ApiClaim["status"]) ?? "paid"], txRef: res.txHash }
+              : c,
+          ),
+        }));
+        await get().loadFromBackend(); // refresh pool balances after payout
+      },
 
-  rejectClaimApi: async (id, reason) => {
-    await api.rejectClaim(id, reason);
-    set((s) => ({ claims: s.claims.map((c) => (c.id === id ? { ...c, status: "Rejected" } : c)) }));
-  },
-}));
+      rejectClaimApi: async (id, reason) => {
+        await api.rejectClaim(id, reason);
+        set((s) => ({ claims: s.claims.map((c) => (c.id === id ? { ...c, status: "Rejected" } : c)) }));
+      },
+    }),
+    {
+      name: "hiperk-session",
+      storage: createJSONStorage(() => localStorage),
+      // Only the session identity survives a refresh — modules/claims are
+      // always re-fetched live from the chain via loadFromBackend().
+      partialize: (s) => ({ wallet: s.wallet, role: s.role }),
+      skipHydration: typeof window === "undefined",
+    },
+  ),
+);
 
 export const truncate = (addr: string) => (addr.length > 10 ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : addr);
