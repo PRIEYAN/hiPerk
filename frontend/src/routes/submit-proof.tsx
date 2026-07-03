@@ -23,7 +23,7 @@ export const Route = createFileRoute("/submit-proof")({
 
 function SubmitProof() {
   const { moduleId, prNumber: prNumberFromSearch, ghState: ghStateFromSearch, ghError } = Route.useSearch();
-  const { modules, wallet, role, submitClaimApi } = useApp();
+  const { modules, wallet, role, submitClaimApi, startPolling } = useApp();
   const navigate = useNavigate();
   const [selected, setSelected] = useState(moduleId ?? modules[0]?.id ?? "");
   const [prNumber, setPrNumber] = useState(prNumberFromSearch ?? "");
@@ -37,6 +37,11 @@ function SubmitProof() {
   const [ghChecking, setGhChecking] = useState(false);
   const [ghConnecting, setGhConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Modules live in memory only (never persisted) — the GitHub OAuth step does
+  // a full browser navigation away and back, which wipes them, so this page
+  // must load its own data rather than assume the dashboard already did.
+  useEffect(() => startPolling(), [startPolling]);
 
   // Landed back here after the GitHub OAuth redirect — resolve the result once,
   // then strip the OAuth params from the URL so a refresh doesn't recheck it.

@@ -72,12 +72,15 @@ async function generateProofViaProverService(input: {
     }),
   });
 
-  const body = (await response.json()) as {
-    error?: string;
-    commitment: string;
-    nullifier: string;
-    repo_id: string;
-  };
+  const raw = await response.text();
+  let body: { error?: string; commitment: string; nullifier: string; repo_id: string };
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `prover service at ${config.proverServiceUrl} returned a non-JSON response (status ${response.status}) — is it actually running there?`,
+    );
+  }
   if (!response.ok) {
     throw new Error(`prover service error: ${body.error ?? response.statusText}`);
   }

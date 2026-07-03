@@ -58,13 +58,18 @@ claimsRouter.post("/", requireGithubVerification, claimsPaymentGate(), async (re
   // 1. Prove. In PROVER_MODE=boundless, rawEmail/repoUrl/contributorSecret
   // are sent to the real prover service (prover/); otherwise they're ignored
   // and evidenceText drives the mock proof.
-  const proof = await generateProof({
-    evidenceText,
-    repoId: m.repoId,
-    rawEmail: typeof rawEmail === "string" ? rawEmail : undefined,
-    repoUrl: typeof repoUrl === "string" ? repoUrl : undefined,
-    contributorSecret: typeof contributorSecret === "string" ? contributorSecret : undefined,
-  });
+  let proof;
+  try {
+    proof = await generateProof({
+      evidenceText,
+      repoId: m.repoId,
+      rawEmail: typeof rawEmail === "string" ? rawEmail : undefined,
+      repoUrl: typeof repoUrl === "string" ? repoUrl : undefined,
+      contributorSecret: typeof contributorSecret === "string" ? contributorSecret : undefined,
+    });
+  } catch (e) {
+    return res.status(502).json({ error: `proof generation failed: ${(e as Error).message}` });
+  }
 
   // 2. Double-claim guard (also enforced on-chain via nullifier).
   if (store.nullifierUsed(moduleId, proof.nullifier)) {
