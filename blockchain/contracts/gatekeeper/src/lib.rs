@@ -8,7 +8,7 @@
 //! bookkeeping of which commitments belong to which repo group, plus an
 //! auth gate so only the trusted relayer can register members.
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, Symbol};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, String};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -24,8 +24,10 @@ pub enum Error {
 enum DataKey {
     /// Singleton config (admin + relayer).
     Config,
-    /// Membership flag for (repo_id, commitment).
-    Member(Symbol, BytesN<32>),
+    /// Membership flag for (repo_id, commitment). repo_id is the full
+    /// human-readable repo string (e.g. "stellar/smoke-test"), matching the
+    /// String stored in the Perk contract so claims resolve consistently.
+    Member(String, BytesN<32>),
 }
 
 #[contracttype]
@@ -58,7 +60,7 @@ impl GatekeeperContract {
     pub fn register_member(
         env: Env,
         caller: Address,
-        repo_id: Symbol,
+        repo_id: String,
         commitment: BytesN<32>,
     ) -> Result<(), Error> {
         let config = Self::config(&env)?;
@@ -74,7 +76,7 @@ impl GatekeeperContract {
 
     /// Read-only. Confirms a commitment belongs to a repo's contributor group.
     /// Returns `false` (never panics) for unknown repo/commitment.
-    pub fn is_member(env: Env, repo_id: Symbol, commitment: BytesN<32>) -> bool {
+    pub fn is_member(env: Env, repo_id: String, commitment: BytesN<32>) -> bool {
         env.storage()
             .persistent()
             .get(&DataKey::Member(repo_id, commitment))
