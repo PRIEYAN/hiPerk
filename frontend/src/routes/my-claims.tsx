@@ -3,7 +3,7 @@ import { PageShell } from "@/components/PageShell";
 import { useApp } from "@/lib/store";
 
 export const Route = createFileRoute("/my-claims")({
-  head: () => ({ meta: [{ title: "My claims — StellarPerks" }] }),
+  head: () => ({ meta: [{ title: "My claims — hiPerks" }] }),
   component: MyClaims,
 });
 

@@ -31,6 +31,15 @@ export const config = {
 
   defaultRewardAmount: Number(process.env.DEFAULT_REWARD_AMOUNT ?? "400"),
 
+  // --- Groq AI: automated PR-complexity -> reward sizing ---
+  groqApiKey: process.env.GROQ_API_KEY ?? "",
+  groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  // Reward is a small fraction of the CURRENT pool balance, scaled by the
+  // Groq complexity score (1-10). These bound that fraction so a single claim
+  // can never drain the pool and always stays "minimal".
+  rewardMinPoolPct: Number(process.env.REWARD_MIN_POOL_PCT ?? "1"), // % of pool at score 1
+  rewardMaxPoolPct: Number(process.env.REWARD_MAX_POOL_PCT ?? "5"), // % of pool at score 10
+
   port: Number(process.env.PORT ?? "4000"),
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
 
@@ -43,6 +52,10 @@ export const config = {
 };
 
 export const githubOAuthConfigured: boolean = !!config.githubClientId && !!config.githubClientSecret;
+
+/** Whether automated Groq-based reward sizing is available. Falls back to a
+ * deterministic local heuristic when no key is set, so the flow still works. */
+export const groqConfigured: boolean = !!config.groqApiKey;
 
 /**
  * Whether the backend should submit real on-chain transactions.

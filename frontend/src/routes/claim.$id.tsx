@@ -3,7 +3,7 @@ import { PageShell } from "@/components/PageShell";
 import { useApp } from "@/lib/store";
 
 export const Route = createFileRoute("/claim/$id")({
-  head: () => ({ meta: [{ title: "Claim status — StellarPerks" }] }),
+  head: () => ({ meta: [{ title: "Claim status — hiPerks" }] }),
   component: ClaimStatus,
 });
 
@@ -70,7 +70,7 @@ function ClaimStatus() {
             <ol className="mt-4 space-y-3 text-sm text-foreground/70 list-decimal pl-5">
               <li>Moderator reviews the anonymous proof</li>
               <li>If approved, the Soroban contract releases the reward</li>
-              <li>Funds land instantly — gas covered by StellarPerks</li>
+              <li>Funds land instantly — gas covered by hiPerks</li>
             </ol>
             <Link to="/my-claims" className="mt-6 inline-block glass-pill px-5 py-3 text-xs">
               View all my claims →

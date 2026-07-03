@@ -2,6 +2,7 @@ import { Router } from "express";
 import { store } from "../models/store.js";
 import { config, githubOAuthConfigured } from "../config.js";
 import * as verification from "../services/githubVerification.js";
+import { analyzePrReward } from "../services/groqAnalysis.js";
 
 /**
  * Off-chain GitHub PR-authorship verification (developer side).
@@ -69,7 +70,26 @@ githubRouter.get("/callback", async (req, res) => {
           ? "pull request is not merged"
           : "pull request was not authored by the connected GitHub account";
 
-    verification.storeResult(state, { moduleId: pending.moduleId, verified, reason });
+    // On success, score the PR's complexity NOW (while we still hold the PR
+    // stats transiently) and carry ONLY the resulting number forward. PR
+    // identity/stats never touch the claim record (implementation.md §7).
+    let complexity: number | undefined;
+    if (verified && pr) {
+      const m = store.getModule(pending.moduleId);
+      const decision = await analyzePrReward(
+        {
+          additions: pr.additions ?? 0,
+          deletions: pr.deletions ?? 0,
+          changedFiles: pr.changed_files ?? 1,
+          commits: pr.commits,
+          title: pr.title,
+        },
+        m?.balance ?? 0,
+      );
+      complexity = decision.complexity;
+    }
+
+    verification.storeResult(state, { moduleId: pending.moduleId, verified, reason, complexity });
   } catch (e) {
     verification.storeResult(state, {
       moduleId: pending.moduleId,
@@ -119,16 +139,26 @@ async function fetchGithubUser(token: string): Promise<{ login: string }> {
   return res.json() as Promise<{ login: string }>;
 }
 
+interface GithubPr {
+  merged: boolean;
+  user?: { login: string };
+  additions?: number;
+  deletions?: number;
+  changed_files?: number;
+  commits?: number;
+  title?: string;
+}
+
 async function fetchPullRequest(
   owner: string,
   repo: string,
   prNumber: number,
   token: string,
-): Promise<{ merged: boolean; user?: { login: string } } | undefined> {
+): Promise<GithubPr | undefined> {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, {
     headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
   });
   if (res.status === 404) return undefined;
   if (!res.ok) throw new Error("could not read pull request from GitHub");
-  return res.json() as Promise<{ merged: boolean; user?: { login: string } }>;
+  return res.json() as Promise<GithubPr>;
 }

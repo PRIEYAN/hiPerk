@@ -9,7 +9,7 @@ export function PageShell({ children, contained = true }: { children: ReactNode;
         {children}
       </main>
       <footer className="relative z-10 mx-auto max-w-6xl px-6 pb-8 flex items-center justify-between text-xs uppercase tracking-widest text-foreground/70">
-        <span className="font-bold">©2026 StellarPerks</span>
+        <span className="font-bold">©2026 hiPerks</span>
         <span>/ANONYMOUS REWARDS SINCE 2024</span>
       </footer>
     </div>

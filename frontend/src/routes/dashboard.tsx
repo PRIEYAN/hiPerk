@@ -4,7 +4,7 @@ import { PageShell } from "@/components/PageShell";
 import { useApp, type ApprovalMode } from "@/lib/store";
 
 export const Route = createFileRoute("/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — StellarPerks" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — hiPerks" }] }),
   component: Dashboard,
 });
 

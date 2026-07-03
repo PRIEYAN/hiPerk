@@ -1,4 +1,4 @@
-# Plan: Anonymous Contributor Rewards on Stellar (working name: StellarPerks)
+# Plan: Anonymous Contributor Rewards on Stellar (working name: hiPerks)
 
 ## 1. One-line pitch
 A web application that lets developers anonymously prove they got a pull request merged into a Stellar ecosystem GitHub repo, using a RISC Zero zero-knowledge proof, and automatically triggers gas-fee-less compensation (funded by Stellar/SDF or repo sponsors) paid out on the Stellar network — without ever revealing who the contributor is.

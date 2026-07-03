@@ -21,7 +21,7 @@ fn commitment(env: &Env, byte: u8) -> BytesN<32> {
 #[test]
 fn initialize_register_and_is_member() {
     let (env, client, _admin, relayer) = setup();
-    let repo = Symbol::new(&env, "stellar_sdk");
+    let repo = String::from_str(&env, "stellar/stellar-sdk");
     let c = commitment(&env, 1);
 
     assert_eq!(client.is_member(&repo, &c), false);
@@ -36,7 +36,7 @@ fn reject_register_from_non_relayer() {
     // Force only the impersonated caller's auth so the relayer check fails.
     env.set_auths(&[]);
     let stranger = Address::generate(&env);
-    let repo = Symbol::new(&env, "stellar_sdk");
+    let repo = String::from_str(&env, "stellar/stellar-sdk");
     let c = commitment(&env, 2);
     client.register_member(&stranger, &repo, &c);
 }
@@ -44,7 +44,7 @@ fn reject_register_from_non_relayer() {
 #[test]
 fn is_member_false_for_unknown() {
     let (env, client, _admin, _relayer) = setup();
-    let repo = Symbol::new(&env, "unknown_repo");
+    let repo = String::from_str(&env, "unknown/repo");
     let c = commitment(&env, 9);
     assert_eq!(client.is_member(&repo, &c), false);
 }
@@ -53,7 +53,7 @@ fn is_member_false_for_unknown() {
 fn relayer_rotation() {
     let (env, client, admin, old_relayer) = setup();
     let new_relayer = Address::generate(&env);
-    let repo = Symbol::new(&env, "freighter");
+    let repo = String::from_str(&env, "stellar/freighter");
     let c = commitment(&env, 3);
 
     client.set_relayer(&admin, &new_relayer);

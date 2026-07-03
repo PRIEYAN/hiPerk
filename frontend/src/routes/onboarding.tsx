@@ -5,7 +5,7 @@ import { connectFreighter } from "@/lib/freighter";
 import { StarShape, BoltShape } from "@/components/Decorations";
 
 export const Route = createFileRoute("/onboarding")({
-  head: () => ({ meta: [{ title: "Onboarding — StellarPerks" }] }),
+  head: () => ({ meta: [{ title: "Onboarding — hiPerks" }] }),
   component: Onboarding,
 });
 
