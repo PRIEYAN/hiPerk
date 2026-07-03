@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { StarShape, BoltShape, OrbitShape } from "@/components/Decorations";
+import stellarLogo from "@/stellar.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -64,10 +65,12 @@ function Landing() {
         {/* bottom row like reference */}
         <div className="absolute bottom-10 left-0 right-0 px-8 flex items-end justify-between text-xs uppercase tracking-widest text-foreground/70">
           <span className="text-2xl md:text-3xl font-black tracking-tight">©2026</span>
-          <div className="glass-card rounded-2xl p-3 hidden md:block">
-            <div className="size-32 rounded-xl bg-gradient-to-br from-zinc-900 via-zinc-800 to-black flex items-center justify-center">
-              <BoltShape className="w-10" />
-            </div>
+          <div className="hidden md:flex size-32 items-center justify-center">
+            <img
+              src={stellarLogo}
+              alt="Stellar"
+              className="animate-float w-28 drop-shadow-[0_20px_40px_rgba(0,0,0,0.35)]"
+            />
           </div>
           <span>/PRIVATE BY DESIGN</span>
         </div>

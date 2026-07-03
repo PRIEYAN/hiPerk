@@ -119,6 +119,20 @@
     drop-shadow(-1px 0 0 oklch(0.7 0.2 200));
 }
 
+/* gentle floating motion for the hero logo */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%      { transform: translateY(-14px) rotate(1deg); }
+}
+
+.animate-float {
+  animation: float-y 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float { animation: none; }
+}
+
 /* subtle paper grain */
 .bg-paper {
   background-color: var(--color-background);
