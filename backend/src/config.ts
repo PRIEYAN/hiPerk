@@ -17,6 +17,10 @@ export const config = {
 
   relayerSecretKey: process.env.RELAYER_SECRET_KEY ?? "",
   adminPublicKey: process.env.ADMIN_PUBLIC_KEY ?? "",
+  // Admin SECRET seed (S...). Required for create_module / fund_module, which
+  // call admin.require_auth() on-chain. If unset, the relayer key is used as a
+  // fallback (only works when the on-chain config.admin == the relayer account).
+  adminSecretKey: process.env.ADMIN_SECRET_KEY ?? "",
   payoutTokenId: process.env.PAYOUT_TOKEN_ID ?? "",
 
   proverMode: (process.env.PROVER_MODE ?? "mock") as "mock" | "risc0",

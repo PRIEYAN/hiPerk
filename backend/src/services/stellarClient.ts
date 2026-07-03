@@ -3,7 +3,10 @@ import {
   Account,
   Address,
   Contract,
+  Operation,
+  StrKey,
   TransactionBuilder,
+  authorizeEntry,
   nativeToScVal,
   scValToNative,
   xdr,
@@ -13,6 +16,7 @@ import { config, networkPassphrase, chainLive } from "../config.js";
 import {
   relayerKeypair,
   relayerPublicKeyOrMock,
+  signerKeypairs,
   sorobanServer,
   sponsorAndSubmit,
 } from "./feeBumpRelayer.js";
@@ -145,10 +149,67 @@ async function invoke(
     .build();
 
   const prepared = await server.prepareTransaction(tx);
+
+  // Soroban require_auth: prepareTransaction attaches auth entries, but any
+  // entry with ADDRESS credentials (e.g. admin.require_auth in create_module /
+  // fund_module) must be explicitly signed by that address's key — the tx
+  // envelope signature alone does NOT satisfy it. Sign each address-credential
+  // entry with whichever configured key matches its address.
+  await signAuthEntries(prepared, server);
+
   prepared.sign(relayer);
 
   // prepared is a Transaction; wrap in fee-bump and submit.
   return sponsorAndSubmit(prepared as any);
+}
+
+/**
+ * Sign every ADDRESS-credential Soroban auth entry on the transaction's invoke
+ * operation with the matching configured keypair (relayer and/or admin). Entries
+ * using SOURCE_ACCOUNT credentials need no separate signature (the tx envelope
+ * signature covers them) and are left untouched.
+ */
+async function signAuthEntries(
+  tx: Awaited<ReturnType<ReturnType<typeof sorobanServer>["prepareTransaction"]>>,
+  server: ReturnType<typeof sorobanServer>,
+): Promise<void> {
+  const op = tx.operations[0] as Operation.InvokeHostFunction | undefined;
+  const auth = op?.auth;
+  if (!op || !auth || auth.length === 0) return;
+
+  const signers = signerKeypairs();
+  const byKey = new Map(signers.map((k) => [k.publicKey(), k]));
+  const passphrase = networkPassphrase();
+
+  // Signature expiration ledger: valid for a generous window from now.
+  const latest = await server.getLatestLedger();
+  const validUntil = latest.sequence + 100;
+
+  const signed: xdr.SorobanAuthorizationEntry[] = [];
+  for (const entry of auth) {
+    if (entry.credentials().switch() !== xdr.SorobanCredentialsType.sorobanCredentialsAddress()) {
+      signed.push(entry); // source-account creds — no explicit signature needed
+      continue;
+    }
+    const addr = entry.credentials().address().address();
+    // Only account (G...) addresses are signable here. A contract (C...)
+    // address credential is authorized by that contract's own logic, not by a
+    // keypair, so leave it untouched.
+    if (addr.switch() !== xdr.ScAddressType.scAddressTypeAccount()) {
+      signed.push(entry);
+      continue;
+    }
+    const pubKey = StrKey.encodeEd25519PublicKey(addr.accountId().ed25519());
+    const signer = byKey.get(pubKey);
+    if (!signer) {
+      throw new Error(
+        `no configured key can authorize require_auth for ${pubKey} — ` +
+          `set ADMIN_SECRET_KEY to the secret of the Perk contract's admin account`,
+      );
+    }
+    signed.push(await authorizeEntry(entry, signer, validUntil, passphrase));
+  }
+  op.auth = signed;
 }
 
 /** Read-only contract call via simulation (no submission). */
