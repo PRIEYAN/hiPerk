@@ -77,9 +77,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "StellarPerks — Anonymous ZK rewards for Stellar contributors" },
+      { title: "hiPerks — Anonymous ZK rewards for Stellar contributors" },
       { name: "description", content: "Anonymous, ZK-verified open-source contributor rewards on Stellar. Get paid for merged PRs without revealing your identity." },
-      { property: "og:title", content: "StellarPerks" },
+      { property: "og:title", content: "hiPerks" },
       { property: "og:description", content: "Anonymous, ZK-verified rewards for Stellar contributors." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

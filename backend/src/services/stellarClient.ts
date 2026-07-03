@@ -91,6 +91,17 @@ function symVal(s: string): xdr.ScVal {
   return nativeToScVal(toSymbol(s), { type: "symbol" });
 }
 
+/**
+ * Soroban `String` arg — NOT a Symbol. The Perk contract stores repo_id as a
+ * `String` (see ModulePool.repo_id) so the full human-readable id
+ * ("stellar/smoke-test") survives on-chain without lossy Symbol sanitization.
+ * Passing a Symbol ScVal where the contract expects a String makes the host
+ * reject the invocation with "bad union" at deserialization time.
+ */
+function strVal(s: string): xdr.ScVal {
+  return nativeToScVal(s, { type: "string" });
+}
+
 function bytes32Val(hex: string): xdr.ScVal {
   const buf = Buffer.from(hex, "hex");
   if (buf.length !== 32) {
@@ -177,7 +188,10 @@ export async function registerMember(
   if (!chainLive) return simHash("register_member");
   return invoke(config.gatekeeperContractId, "register_member", [
     addrVal(relayerPublicKeyOrMock()),
-    symVal(repoId),
+    // repo_id is a Soroban String on-chain, and must be the SAME value the Perk
+    // contract stores so gatekeeper.is_member matches at claim time (a Symbol
+    // both fails deserialization here and mismatches the String-keyed lookup).
+    strVal(repoId),
     bytes32Val(commitment),
   ]);
 }
@@ -196,7 +210,9 @@ export async function createModule(params: {
   return invoke(config.perkContractId, "create_module", [
     addrVal(config.adminPublicKey || relayerPublicKeyOrMock()),
     symVal(params.moduleId),
-    symVal(params.repoId),
+    // repo_id is a Soroban String on-chain (not a Symbol) — sending a Symbol
+    // here makes the host reject the call with "bad union".
+    strVal(params.repoId),
     addrVal(params.token),
     symVal(params.approvalMode),
   ]);
@@ -246,8 +262,8 @@ export async function getModule(moduleId: string): Promise<ModulePoolView | unde
   }
   const raw = await readCall(config.perkContractId, "get_module", [symVal(moduleId)]);
   if (!raw) return undefined;
-  // repo_id on-chain is the lossy-encoded Symbol; surface the human string from
-  // the off-chain store instead so callers never see the encoded form.
+  // repo_id is stored on-chain as a full String, so raw.repo_id is already the
+  // human-readable id; prefer the off-chain store only as a fallback.
   const stored = store.getModule(moduleId);
   return {
     moduleId,
@@ -256,4 +272,26 @@ export async function getModule(moduleId: string): Promise<ModulePoolView | unde
     approvalMode: String(raw.approval_mode),
     token: String(raw.token),
   };
+}
+
+/**
+ * Read EVERY module directly from the Perk contract's on-chain index.
+ *
+ * This is the shared, cross-machine module list: the contract's `list_modules`
+ * returns the full set of pools from its on-chain ModuleIndex, so any backend
+ * pointed at the same PERK_CONTRACT_ID sees the identical, live set — no
+ * off-chain index or shared database required. Returns [] in mock mode (there
+ * is no chain to read) so callers fall back to the local store.
+ */
+export async function listModulesOnChain(): Promise<ModulePoolView[]> {
+  if (!chainLive) return [];
+  const raw = await readCall(config.perkContractId, "list_modules", []);
+  if (!Array.isArray(raw)) return [];
+  return raw.map((m: any) => ({
+    moduleId: String(m.module_id),
+    repoId: String(m.repo_id), // full human-readable String, straight from chain
+    balance: Number(m.balance),
+    approvalMode: String(m.approval_mode),
+    token: String(m.token),
+  }));
 }

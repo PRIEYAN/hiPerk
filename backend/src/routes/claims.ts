@@ -7,8 +7,15 @@ import { generateProof } from "../services/riscZeroProver.js";
 import { claimsPaymentGate } from "../services/x402Payment.js";
 import * as stellar from "../services/stellarClient.js";
 import * as githubVerification from "../services/githubVerification.js";
+import { scoreToReward } from "../services/groqAnalysis.js";
 
 export const claimsRouter = Router();
+
+/** Carries the anonymous Groq complexity score from the verification gate to
+ * the claim handler on the request object (never persisted with the claim). */
+interface ClaimRequest extends Request {
+  prComplexity?: number;
+}
 
 /**
  * Requires a completed, unexpired GitHub PR-authorship verification (see
@@ -16,7 +23,7 @@ export const claimsRouter = Router();
  * payment gate so a developer is never charged for a claim that fails this
  * check. Single-use: consumes the verification result either way.
  */
-function requireGithubVerification(req: Request, res: Response, next: NextFunction) {
+function requireGithubVerification(req: ClaimRequest, res: Response, next: NextFunction) {
   const { moduleId, githubVerificationState } = req.body ?? {};
   if (!moduleId || typeof moduleId !== "string") {
     return res.status(400).json({ error: "moduleId required" });
@@ -26,11 +33,14 @@ function requireGithubVerification(req: Request, res: Response, next: NextFuncti
       .status(400)
       .json({ error: "GitHub verification required — connect GitHub and verify your merged PR first" });
   }
-  if (!githubVerification.consumeVerifiedResult(githubVerificationState, moduleId)) {
+  const result = githubVerification.consumeVerifiedResult(githubVerificationState, moduleId);
+  if (!result) {
     return res
       .status(403)
       .json({ error: "GitHub verification missing, expired, or failed — please reconnect GitHub" });
   }
+  // Carry the anonymous Groq complexity forward for automated reward sizing.
+  req.prComplexity = result.complexity;
   next();
 }
 
@@ -46,13 +56,19 @@ function requireGithubVerification(req: Request, res: Response, next: NextFuncti
  *
  * Privacy: only commitment/nullifier are stored — never GitHub identity/email.
  */
-claimsRouter.post("/", requireGithubVerification, claimsPaymentGate(), async (req, res) => {
+claimsRouter.post("/", requireGithubVerification, claimsPaymentGate(), async (req: ClaimRequest, res) => {
   const { moduleId, evidenceText, payoutAddress, rawEmail, repoUrl, contributorSecret } =
     req.body ?? {};
   const m = store.getModule(moduleId);
   if (!m) return res.status(404).json({ error: "module not found" });
+  if (m.status === "Closed") {
+    return res.status(409).json({ error: "module is closed — its reward pool is exhausted" });
+  }
   if (!evidenceText || typeof evidenceText !== "string") {
     return res.status(400).json({ error: "evidenceText required" });
+  }
+  if (!payoutAddress || typeof payoutAddress !== "string") {
+    return res.status(400).json({ error: "payoutAddress required for automated reward" });
   }
 
   // 1. Prove. In PROVER_MODE=boundless, rawEmail/repoUrl/contributorSecret
@@ -83,27 +99,47 @@ claimsRouter.post("/", requireGithubVerification, claimsPaymentGate(), async (re
     return res.status(502).json({ error: `register_member failed: ${(e as Error).message}` });
   }
 
+  // 4. Size the reward automatically from the Groq PR-complexity score against
+  // the CURRENT pool balance (minimal % of pool). Falls back to a heuristic
+  // score of 1 if verification produced none (e.g. Groq + heuristic both
+  // unavailable at OAuth time).
+  const complexity = typeof req.prComplexity === "number" ? req.prComplexity : 1;
+  const amount = scoreToReward(complexity, m.balance);
+  if (amount <= 0) {
+    return res.status(409).json({ error: "reward pool is exhausted" });
+  }
+
   const claim: Claim = {
     claimId: `clm_anon_${nanoid(6)}`,
     moduleId,
     commitment: proof.commitment,
     nullifier: proof.nullifier,
-    amount: config.defaultRewardAmount,
+    amount,
     status: "pending",
     createdAt: new Date().toISOString(),
     proofId: proof.proofId,
-    payoutAddress: typeof payoutAddress === "string" ? payoutAddress : undefined,
+    payoutAddress,
   };
   store.putClaim(claim);
 
-  // 4. Automatic approval mode → pay out immediately.
-  if (m.approvalMode === "automatic" && claim.payoutAddress) {
-    await payoutClaim(claim, claim.payoutAddress, claim.amount).catch(() => {
-      /* leave pending on failure */
-    });
+  // 5. Fully automated payout — every verified claim is paid immediately with
+  // the AI-sized amount; no manual moderator approval. Auto-closes the module
+  // when the pool hits zero (see payoutClaim).
+  try {
+    await payoutClaim(claim, payoutAddress, amount);
+  } catch (e) {
+    return res
+      .status(502)
+      .json({ error: `automated payout failed: ${(e as Error).message}`, claimId: claim.claimId });
   }
 
-  res.status(201).json({ claimId: claim.claimId, status: claim.status });
+  res.status(201).json({
+    claimId: claim.claimId,
+    status: claim.status,
+    amount: claim.amount,
+    txHash: claim.txHash,
+    complexity,
+  });
 });
 
 /** GET /claims/:claimId — developer polls status (no identity info). */
@@ -171,5 +207,11 @@ async function payoutClaim(c: Claim, payoutAddress: string, amount: number): Pro
   store.putClaim(c);
 
   m.balance -= amount;
+  // Auto-close once the escrowed pool is exhausted so it drops off the
+  // developer's list of open modules.
+  if (m.balance <= 0) {
+    m.balance = 0;
+    m.status = "Closed";
+  }
   store.putModule(m);
 }

@@ -5,7 +5,7 @@ import stellarLogo from "@/stellar.png";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "StellarPerks — Anonymous rewards for Stellar contributors" },
+      { title: "hiPerks — Anonymous rewards for Stellar contributors" },
       { name: "description", content: "Get paid for merged PRs on Stellar ecosystem repos. Zero-knowledge proofs keep your identity private." },
     ],
   }),
@@ -19,7 +19,7 @@ function Landing() {
       <header className="fixed top-5 left-1/2 z-50 -translate-x-1/2">
         <div className="glass-pill flex items-center gap-3 pl-5 pr-2 py-2">
           <span className="inline-block size-2 rounded-full bg-white/90" />
-          <span className="text-sm font-semibold">StellarPerks</span>
+          <span className="text-sm font-semibold">hiPerks</span>
           <Link to="/onboarding" className="ml-2 rounded-full bg-white text-black px-3 py-1 text-xs font-medium hover:bg-white/90">
             Launch
           </Link>

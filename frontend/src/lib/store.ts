@@ -126,14 +126,14 @@ export const useApp = create<State>()(
       },
 
       createModuleApi: async (m) => {
+        // The backend escrows rewardPool into the Perk contract as part of
+        // create_module, so no separate fund call is needed.
         const res = await api.createModule({
           repoId: m.repo,
+          rewardPool: m.rewardPool,
           approvalMode: m.approvalMode,
           createdBy: m.createdBy,
         });
-        if (m.rewardPool > 0) {
-          await api.fundModule(res.moduleId, m.rewardPool);
-        }
         // Re-read live so the new module shows real on-chain state immediately.
         await get().loadFromBackend();
         const created = get().modules.find((x) => x.id === res.moduleId);

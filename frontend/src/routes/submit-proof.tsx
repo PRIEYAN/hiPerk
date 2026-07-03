@@ -17,7 +17,7 @@ const search = z.object({
 
 export const Route = createFileRoute("/submit-proof")({
   validateSearch: search,
-  head: () => ({ meta: [{ title: "Submit proof — StellarPerks" }] }),
+  head: () => ({ meta: [{ title: "Submit proof — hiPerks" }] }),
   component: SubmitProof,
 });
 

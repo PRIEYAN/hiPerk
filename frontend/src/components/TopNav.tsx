@@ -24,7 +24,7 @@ export function TopNav() {
       <nav className="glass-pill flex items-center justify-between gap-2 pl-5 pr-2 py-2">
         <Link to="/dashboard" className="flex items-center gap-2 text-sm font-semibold tracking-tight">
           <span className="inline-block size-2 rounded-full bg-white/90" />
-          StellarPerks
+          hiPerks
         </Link>
 
         <div className="hidden md:flex items-center gap-1">

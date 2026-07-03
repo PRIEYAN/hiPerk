@@ -52,8 +52,13 @@ export const api = {
   health: () => req<{ ok: boolean; chainLive: boolean }>("GET", "/health"),
 
   listModules: () => req<ApiModule[]>("GET", "/modules"),
-  createModule: (b: { repoId: string; rewardToken?: string; approvalMode?: string; createdBy?: string }) =>
-    req<{ moduleId: string; module: any }>("POST", "/modules", b),
+  createModule: (b: {
+    repoId: string;
+    rewardPool: number;
+    rewardToken?: string;
+    approvalMode?: string;
+    createdBy?: string;
+  }) => req<{ moduleId: string; module: any }>("POST", "/modules", b),
   fundModule: (moduleId: string, amount: number) =>
     req<{ txHash: string; balance: number }>("POST", `/modules/${moduleId}/fund`, { amount }),
 

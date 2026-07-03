@@ -4,7 +4,7 @@ import { PageShell } from "@/components/PageShell";
 import { useApp } from "@/lib/store";
 
 export const Route = createFileRoute("/review")({
-  head: () => ({ meta: [{ title: "Review claims — StellarPerks" }] }),
+  head: () => ({ meta: [{ title: "Review claims — hiPerks" }] }),
   component: Review,
 });
 

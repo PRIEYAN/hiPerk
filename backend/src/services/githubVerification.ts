@@ -26,6 +26,13 @@ interface VerificationResult {
   moduleId: string;
   verified: boolean;
   reason?: string;
+  /**
+   * Groq-derived PR complexity (1-10), computed during the OAuth callback from
+   * anonymous PR size stats. Carried forward so the claim handler can size the
+   * reward against the live pool WITHOUT ever storing PR identity next to the
+   * claim (implementation.md §7). Absent if analysis wasn't run/failed.
+   */
+  complexity?: number;
   createdAt: number;
 }
 
@@ -60,7 +67,7 @@ export function consumePending(state: string): PendingVerification | undefined {
 /** Record the outcome of a verification attempt (success or failure). */
 export function storeResult(
   state: string,
-  result: { moduleId: string; verified: boolean; reason?: string },
+  result: { moduleId: string; verified: boolean; reason?: string; complexity?: number },
 ): void {
   sweep(results);
   results.set(state, { ...result, createdAt: Date.now() });
@@ -77,10 +84,18 @@ export function peekResult(state: string): VerificationResult | undefined {
  * Consume a verified result for use in a claim submission. Single-use: the
  * record is deleted regardless of outcome so a verification token can never
  * be replayed across multiple claims.
+ *
+ * Returns `null` if the token is missing/expired/failed or is for a different
+ * module. On success returns the (anonymous) Groq complexity score, if one was
+ * computed during the OAuth callback — the only PR-derived value that survives.
  */
-export function consumeVerifiedResult(state: string, moduleId: string): boolean {
+export function consumeVerifiedResult(
+  state: string,
+  moduleId: string,
+): { complexity?: number } | null {
   const rec = results.get(state);
   results.delete(state);
-  if (!rec || Date.now() - rec.createdAt > TTL_MS) return false;
-  return rec.verified && rec.moduleId === moduleId;
+  if (!rec || Date.now() - rec.createdAt > TTL_MS) return null;
+  if (!rec.verified || rec.moduleId !== moduleId) return null;
+  return { complexity: rec.complexity };
 }

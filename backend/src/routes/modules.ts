@@ -15,10 +15,22 @@ const symbolId = customAlphabet(
 
 export const modulesRouter = Router();
 
-/** POST /modules — admin creates a module. */
+/**
+ * POST /modules — moderator creates a module AND escrows its reward pool.
+ *
+ * The `rewardPool` amount is funded from the moderator/admin account into the
+ * Perk contract escrow as part of creation (create_module → fund_module), so
+ * clicking "Create module" credits the pool immediately. Rewards are later
+ * paid out of this escrow automatically per claim (see routes/claims.ts).
+ */
 modulesRouter.post("/", async (req, res) => {
-  const { repoId, rewardToken, approvalMode, createdBy } = req.body ?? {};
+  const { repoId, rewardToken, approvalMode, createdBy, rewardPool } = req.body ?? {};
   if (!repoId) return res.status(400).json({ error: "repoId required" });
+
+  const pool = Number(rewardPool);
+  if (!Number.isFinite(pool) || pool <= 0) {
+    return res.status(400).json({ error: "rewardPool must be a positive number to escrow" });
+  }
 
   const mode: ApprovalMode = approvalMode === "automatic" ? "automatic" : "manual";
   const moduleId = `mod_${symbolId()}`;
@@ -38,12 +50,24 @@ modulesRouter.post("/", async (req, res) => {
     return res.status(502).json({ error: `on-chain create_module failed: ${(e as Error).message}` });
   }
 
+  // Escrow the reward pool into the Perk contract. If this fails the module
+  // exists on-chain but unfunded; surface that so the moderator can retry via
+  // POST /modules/:id/fund rather than silently showing a 0-balance module.
+  try {
+    await stellar.fundModule(moduleId, pool);
+  } catch (e) {
+    return res.status(502).json({
+      error: `module created but escrow funding failed: ${(e as Error).message}. Retry funding via POST /modules/${moduleId}/fund`,
+      moduleId,
+    });
+  }
+
   const m: Module = {
     moduleId,
     repoId,
     rewardToken: token,
     approvalMode: mode,
-    balance: 0,
+    balance: pool,
     status: "Open",
     createdBy: createdBy || config.adminPublicKey || "admin",
     createdAt: new Date().toISOString(),
@@ -77,36 +101,50 @@ modulesRouter.post("/:moduleId/fund", async (req, res) => {
 /**
  * GET /modules — list modules (Dashboard + Browse).
  *
- * The module index (which modules exist) comes from the off-chain store, since
- * Soroban can't enumerate storage. But the balance/approval/token for each is
- * read LIVE from the Perk contract via get_module, so the dashboard reflects
- * real on-chain pool state — not a stale mirror. If a chain read fails (or we're
- * in mock mode) we fall back to the mirrored values for that module.
+ * When the chain is live, the module SET itself comes from the Perk contract's
+ * on-chain index (stellar.listModulesOnChain) — so every machine pointed at the
+ * same PERK_CONTRACT_ID sees the identical, live list, with no dependency on any
+ * single machine's local store. Local-store rows only supply display-only extras
+ * (createdBy, status) merged in by moduleId when present; a module created on
+ * another machine still shows up fully, just without those local-only fields.
+ *
+ * If the on-chain list read fails, we degrade to the local store so the
+ * dashboard still renders this machine's known modules. In mock mode there is
+ * no chain, so the local store is authoritative.
  */
 modulesRouter.get("/", async (_req, res) => {
+  if (chainLive) {
+    try {
+      const onChain = await stellar.listModulesOnChain();
+      const views = onChain.map((c) => {
+        const local = store.getModule(c.moduleId); // display-only extras, may be undefined
+        return {
+          moduleId: c.moduleId,
+          repoId: c.repoId, // full human-readable String, straight from chain
+          balance: c.balance,
+          approvalMode: c.approvalMode as ApprovalMode,
+          rewardToken: c.token,
+          status: local?.status ?? "Open",
+          onChain: true, // genuinely read from the Perk contract
+        };
+      });
+      return res.json(views);
+    } catch {
+      // Chain read failed — fall through to the local-store mirror below so the
+      // dashboard still renders instead of erroring.
+    }
+  }
+
   const mirrored = store.listModules();
-  const views = await Promise.all(
-    mirrored.map(async (m) => {
-      let onChain: Awaited<ReturnType<typeof stellar.getModule>> | undefined;
-      try {
-        onChain = await stellar.getModule(m.moduleId);
-      } catch {
-        onChain = undefined; // degrade to mirror for this module
-      }
-      // Only claim "on-chain" when the chain is actually live AND the read
-      // succeeded — in mock mode getModule returns the mirror, which isn't chain.
-      const live = chainLive && Boolean(onChain);
-      return {
-        moduleId: m.moduleId,
-        repoId: m.repoId, // human-readable, from the mirror (on-chain is lossy Symbol)
-        balance: onChain ? onChain.balance : m.balance,
-        approvalMode: onChain ? (onChain.approvalMode as ApprovalMode) : m.approvalMode,
-        rewardToken: onChain ? onChain.token : m.rewardToken,
-        status: m.status,
-        onChain: live, // UI badge: genuinely read from the Perk contract
-      };
-    }),
-  );
+  const views = mirrored.map((m) => ({
+    moduleId: m.moduleId,
+    repoId: m.repoId,
+    balance: m.balance,
+    approvalMode: m.approvalMode,
+    rewardToken: m.rewardToken,
+    status: m.status,
+    onChain: false, // mock mode or degraded read: not live from chain
+  }));
   res.json(views);
 });
 
